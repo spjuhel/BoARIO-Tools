@@ -515,10 +515,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         scriptLogger.info("Starting global treatment (2) for proj")
         parquet_proj = global_treatment_after_period_change(df_proj,mrio_name,folder,boario_builded_data=boario_builded_data, ref_year=ref_year, name=PROJ_PERIOD_NAME)
 
-    boario_flood_data = pathlib.Path(boario_builded_data).parent/"source-data"/"flood-data"
+    df_hist = read_parquet_with_meta(folder/"builded-data"/mrio_name/f"5_clustered_floods_1970_2015_{mrio_basename}_{mrio_subname}_with_prodloss.parquet")
+    df_proj = read_parquet_with_meta(folder/"builded-data"/mrio_name/f"5_clustered_floods_2016_2130_{mrio_basename}_{mrio_subname}_with_prodloss.parquet")
     #symlinking_with_meta(parquet_hist,boario_flood_data/f"full_floodbase_{mrio_basename}_{mrio_subname}_{HIST_PERIOD_NAME}.parquet")
     #symlinking_with_meta(parquet_proj,boario_flood_data/f"full_floodbase_{mrio_basename}_{mrio_subname}_{PROJ_PERIOD_NAME}.parquet")
     save_subperiod(df_hist,1970,2015,folder/"builded-data"/mrio_name/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_1970_2015.parquet")
+    save_subperiod(df_proj,2016,2130,folder/"builded-data"/mrio_name/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2130.parquet")
     save_subperiod(df_proj,2016,2035,folder/"builded-data"/mrio_name/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2035.parquet")
     save_subperiod(df_proj,2036,2050,folder/"builded-data"/mrio_name/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2036_2050.parquet")
     #symlinking_with_meta(folder/"builded-data"/mrio_name/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_1970_2015.parquet",boario_flood_data/f"full_floodbase_1970_2015.parquet")
