@@ -72,7 +72,7 @@ def file_path(path):
 logFormatter = logging.Formatter(
     "%(asctime)s [%(levelname)-5.5s] %(name)s %(message)s", datefmt="%H:%M:%S"
 )
-scriptLogger = logging.getLogger("MRIO-flood-mapper")
+scriptLogger = logging.getLogger("Rep events builder")
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 scriptLogger.addHandler(consoleHandler)
