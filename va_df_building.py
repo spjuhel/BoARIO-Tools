@@ -40,6 +40,8 @@ def va_df_build(mrios, mrio_params:dict, mrio_unit:int=10**6) -> pd.DataFrame:
         va['gva_share'] = (va['GVA (€)'] / va.groupby('region')['GVA (€)'].transform('sum'))
         va['yearly gross output (M€)'] = mrio.x["indout"]
         va['yearly gross output (€)'] = mrio.x["indout"] * mrio_unit
+        va['yearly total final demand (M€)'] = mrio.Y.sum(axis=1)
+        va['yearly total final demand (€)'] = va['yearly total final demand (M€)'] * mrio_unit
         va = va.reset_index()
         print(year)
         va_dict[year] = va.set_index(["region","sector"])
@@ -140,6 +142,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             gva_df = va_df.loc[:,pd.IndexSlice[:,'GVA (€)']].groupby('region').sum()
             gva_df = gva_df.droplevel(1, axis=1)
             save_parquet_with_meta(gva_df,output/f"GVA_{mrio_base}_{mrio_sub}.parquet")
+            final_demand_df = va_df.loc[:,pd.IndexSlice[:,"yearly total final demand (€)"]].groupby("region").sum()
+            final_demand_df = final_demand_df.droplevel(1, axis=1)
+            save_parquet_with_meta(final_demand_df,output/f"FINAL_DEMAND_{mrio_base}_{mrio_sub}.parquet")
     return 0
 
 
