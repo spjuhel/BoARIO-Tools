@@ -74,8 +74,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     save_parquet_with_meta(df.loc[(df["mrio_region"].isin(["AU","FR","DE","FR10", "DE11", "AUS"])) & (df.year <= 2035)], output_flooddb.parent/(output_flooddb.name+"_server.parquet"))
     save_parquet_with_meta(df.loc[(df["mrio_region"].isin(["FR","FR10"])) & (df.year <= 2035)], output_flooddb.parent/(output_flooddb.name+"_local.parquet"))
 
-    save_parquet_with_meta(reps.loc[(reps.mrio_region.isin(["AU","FR","DE","FR10", "DE11", "AUS"])) & (reps["class"].isin(["1%","33%","66%","max"]))], output_repev.parent/(output_repev.name+"_server.parquet"))
-    save_parquet_with_meta(reps.loc[(reps.mrio_region.isin(["FR","FR10"])) & (reps["class"].isin(["1%","90%"]))],output_repev.parent/(output_repev.name+"_local.parquet") )
+    save_parquet_with_meta(reps.loc[(reps.mrio_region.isin(["AU","FR","DE","FR10", "DE11", "AUS"]))].sort_values(by=["mrio_region","direct_prodloss_as_2010gva_share"]).groupby("mrio_region").nth([0,2,-1]), output_repev.parent/(output_repev.name+"_server.parquet"))
+    save_parquet_with_meta(reps.loc[(reps.mrio_region.isin(["FR","FR10"]))].sort_values(by=["mrio_region","direct_prodloss_as_2010gva_share"]).groupby("mrio_region").nth([0,-1]),output_repev.parent/(output_repev.name+"_local.parquet") )
 
     return 0
 
