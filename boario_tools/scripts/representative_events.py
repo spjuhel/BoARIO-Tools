@@ -3,15 +3,13 @@ import logging
 import argparse
 from pathlib import Path
 
-from floods.funcs import (
+from floods import (
     build_rep_events_from_parquet
 )
 
 from utils import (
-    read_parquet_with_meta,
     save_parquet_with_meta,
     file_path,
-    dir_path
     )
 
 logFormatter = logging.Formatter(

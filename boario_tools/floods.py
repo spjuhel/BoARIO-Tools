@@ -10,8 +10,14 @@ import pathlib
 import geopandas as gpd
 import pymrio as pym
 
+shares = None
+K_DMG_SHARE = None
+HIST_PERIOD_NAME = None
+PROJ_PERIOD_NAME = None
+JUNCTION_YEAR = None
 
-from ..utils import read_parquet_with_meta, save_parquet_with_meta, check_na
+
+from utils import read_parquet_with_meta, save_parquet_with_meta, check_na
 from boario_tools import log as scriptLogger
 
 def check_df(df:pd.DataFrame):
@@ -19,7 +25,7 @@ def check_df(df:pd.DataFrame):
         raise ValueError("Dataframe is not of type DataFrame")
     if "return_period" not in df.columns:
         raise ValueError("Dataframe has no 'return_period' column")
-    if ("lat" not in df.columns) or ("long" not in df.columns):
+    if ("lat" not in df.columns) or ("long" not in df.columns)
         raise ValueError("Dataframe lacks either 'lat', 'long' or both column(s)")
 
 def check_flopros(flopros:gpd.GeoDataFrame):
@@ -101,8 +107,6 @@ def get_events_in_MRIO_regions(df,mrios_shapes,mrio_name):
     gdf = gdf.to_crs(crs=3857)
     mrio_shapes_df = mrio_shapes_df.to_crs(crs=3857)
     scriptLogger.info("...Spatial within join")
-
-    groups = gdf.groupby(["long","lat"])
 
     gdf_eu = gdf.sjoin(mrio_shapes_df, how="left", predicate="within")
     gdf_tmp = gdf_eu[gdf_eu.mrio.isna()].copy()
@@ -227,7 +231,7 @@ def compute_sector_shares(df,shares):
     assert np.isclose(df["total_event_dmg"], tmp.sum(axis=1)).all()
     return tmp
 
-def global_treatment_until_period_change(initial_parquet,mrios_shapes,mrio_name,mrio_fullname,output,flopros,name=None):
+def global_treatment_until_period_change(initial_parquet,mrios_shapes,mrio_name,mrio_fullname,output,flopros,name=None, shares):
     if name is None:
         if "proj" in initial_parquet.stem:
             name = "proj"
@@ -357,47 +361,6 @@ def global_treatment_after_period_change(df, mrio_name, mrio_ref, output_dir, pe
     #df = compute_direct_prodloss(df,gva_df,va_df,event_template,ref_year)
     save_parquet_with_meta(df,output_dir/"builded-data"/mrio_name/f"5_clustered_floods_{period_name}_{mrio_name}_with_prodloss.parquet")
     return output_dir/"builded-data"/mrio_name/f"5_clustered_floods_{period_name}_{mrio_name}_with_prodloss.parquet"
-
-def load_mrio(filename: str, pkl_filepath) -> pym.IOSystem:
-    """
-    Loads the pickle file with the given filename.
-
-    Args:
-        filename: A string representing the name of the file to load (without the .pkl extension).
-                  Valid file names follow the format <prefix>_full_<year>, where <prefix> is one of
-                  'oecd_v2021', 'euregio', 'exiobase3', or 'eora26', and <year> is a four-digit year
-                  such as '2000' or '2010'.
-
-    Returns:
-        The loaded pickle file.
-
-    Raises:
-        ValueError: If the given filename does not match the valid file name format, or the file doesn't contain an IOSystem.
-
-    """
-    regex = re.compile(
-        r"^(oecd_v2021|euregio|exiobase3|eora26)_full_(\d{4})"
-    )  # the regular expression to match filenames
-
-    match = regex.match(filename)  # match the filename with the regular expression
-
-    if not match:
-        raise ValueError(f"The file name {filename} is not valid.")
-
-    prefix, year = match.groups()  # get the prefix and year from the matched groups
-
-    pkl_filepath = Path(pkl_filepath)
-
-    fullpath = pkl_filepath / prefix /  f"{filename}.pkl"  # create the full file path
-
-    scriptLogger.info(f"Loading {filename} mrio")
-    with open(fullpath, "rb") as f:
-        mrio = pickle.load(f)  # load the pickle file
-
-    if not isinstance(mrio, pym.IOSystem):
-        raise ValueError(f"{filename} was loaded but it is not an IOSystem")
-
-    return mrio
 
 
 def symlinking(input_file, output_file):

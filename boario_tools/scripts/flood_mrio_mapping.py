@@ -1,19 +1,26 @@
-from floods.funcs import *
+import os
+from pathlib import Path
+import re
+
+from geopandas import gpd
+from boario_tools import floods, mriot
+import pandas as pd
 import logging
 from typing import Sequence
 import argparse
 
 from ..utils import (
     file_path,
-    dir_path
+    dir_path,
+    read_parquet_with_meta
 )
 
 # CONSTANTS
-shares = pd.Series([0.56,0.16,0.20,0.08], index=["residential_dmg","industrial_dmg","commercial_dmg","infrastructure_dmg"])
-K_DMG_SHARE = 0.44
-HIST_PERIOD_NAME = "1970_2015"
-PROJ_PERIOD_NAME = "2016_2130"
-JUNCTION_YEAR = 2016
+floods.shares = pd.Series([0.56,0.16,0.20,0.08], index=["residential_dmg","industrial_dmg","commercial_dmg","infrastructure_dmg"])
+floods.K_DMG_SHARE = 0.44
+floods.HIST_PERIOD_NAME = "1970_2015"
+floods.PROJ_PERIOD_NAME = "2016_2130"
+floods.JUNCTION_YEAR = 2016
 
 
 logFormatter = logging.Formatter(
@@ -98,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     scriptLogger.info(f"Reading files from {folder} and building initial hist and proj files")
     scriptLogger.info(f"Will save to {output}")
     if not (folder/"filtered_df_hist.parquet").exists() or not (folder/"filtered_df_proj.parquet").exists():
-        parse_flood_dir_save_filtered(folder,output)
+        floods.parse_flood_dir_save_filtered(folder,output)
 
     mrios_shapes = gpd.read_file(mrios_shapes_path)
     flopros = gpd.read_file(flopros_path)
@@ -110,42 +117,42 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not (folder/"builded-data"/mrio_name_wo_year/f"3_clustered_floods_hist_{mrio_basename}_{mrio_subname}.parquet").exists():
         scriptLogger.info("Starting global treatment (1) for hist")
-        global_treatment_until_period_change(df_hist_path,mrios_shapes,mrio_basename,mrio_name_wo_year,folder,flopros)
+        floods.global_treatment_until_period_change(df_hist_path,mrios_shapes,mrio_basename,mrio_name_wo_year,folder,flopros, floods.shares)
 
     if not (folder/"builded-data"/mrio_name_wo_year/f"3_clustered_floods_proj_{mrio_basename}_{mrio_subname}.parquet").exists():
         scriptLogger.info("Starting global treatment (1) for proj")
-        global_treatment_until_period_change(df_proj_path,mrios_shapes,mrio_basename,mrio_name_wo_year,folder,flopros)
+        floods.global_treatment_until_period_change(df_proj_path,mrios_shapes,mrio_basename,mrio_name_wo_year,folder,flopros, floods.shares)
 
     df_hist = read_parquet_with_meta(folder/"builded-data"/mrio_name_wo_year/f"3_clustered_floods_hist_{mrio_basename}_{mrio_subname}.parquet")
     df_proj = read_parquet_with_meta(folder/"builded-data"/mrio_name_wo_year/f"3_clustered_floods_proj_{mrio_basename}_{mrio_subname}.parquet")
 
     if not (folder/"builded-data"/mrio_name_wo_year/f"4_clustered_floods_1970_2015_{mrio_basename}_{mrio_subname}.parquet").exists() or not (folder/"builded-data"/mrio_name_wo_year/f"4_clustered_floods_2016_2130_{mrio_basename}_{mrio_subname}.parquet").exists():
         scriptLogger.info("Correcting periods")
-        period_change(df_hist,df_proj,folder,mrio_name_wo_year)
+        floods.period_change(df_hist,df_proj,folder,mrio_name_wo_year)
 
     df_hist = read_parquet_with_meta(folder/"builded-data"/mrio_name_wo_year/f"4_clustered_floods_1970_2015_{mrio_basename}_{mrio_subname}.parquet")
     df_proj = read_parquet_with_meta(folder/"builded-data"/mrio_name_wo_year/f"4_clustered_floods_2016_2130_{mrio_basename}_{mrio_subname}.parquet")
 
     scriptLogger.info("Loading reference MRIOT")
-    mrio_ref = load_mrio(mrio_name_wo_year+"_"+str(ref_year), pkl_filepath=mrio_data_dir/"pkls")
+    mrio_ref = mriot.load_mrio(mrio_name_wo_year+"_"+str(ref_year), pkl_filepath=mrio_data_dir/"pkls")
 
     if not (folder/"builded-data"/mrio_name_wo_year/f"5_clustered_floods_1970_2015_{mrio_basename}_{mrio_subname}_with_prodloss.parquet").exists():
         scriptLogger.info("Starting global treatment (2) for hist")
-        parquet_hist = global_treatment_after_period_change(df_hist,mrio_name_wo_year, mrio_ref, folder, period_name=HIST_PERIOD_NAME)
+        parquet_hist = floods.global_treatment_after_period_change(df_hist,mrio_name_wo_year, mrio_ref, folder, period_name=HIST_PERIOD_NAME)
 
     if not (folder/"builded-data"/mrio_name_wo_year/f"5_clustered_floods_2016_2130_{mrio_basename}_{mrio_subname}_with_prodloss.parquet").exists():
         scriptLogger.info("Starting global treatment (2) for proj")
-        parquet_proj = global_treatment_after_period_change(df_proj,mrio_name_wo_year, mrio_ref, folder, period_name=PROJ_PERIOD_NAME)
+        parquet_proj = floods.global_treatment_after_period_change(df_proj,mrio_name_wo_year, mrio_ref, folder, period_name=PROJ_PERIOD_NAME)
 
     df_hist = read_parquet_with_meta(folder/"builded-data"/mrio_name_wo_year/f"5_clustered_floods_1970_2015_{mrio_basename}_{mrio_subname}_with_prodloss.parquet")
     df_proj = read_parquet_with_meta(folder/"builded-data"/mrio_name_wo_year/f"5_clustered_floods_2016_2130_{mrio_basename}_{mrio_subname}_with_prodloss.parquet")
     #symlinking_with_meta(parquet_hist,boario_flood_data/f"full_floodbase_{mrio_basename}_{mrio_subname}_{HIST_PERIOD_NAME}.parquet")
     #symlinking_with_meta(parquet_proj,boario_flood_data/f"full_floodbase_{mrio_basename}_{mrio_subname}_{PROJ_PERIOD_NAME}.parquet")
     scriptLogger.info("Saving sub-periods")
-    save_subperiod(df_hist,1970,2015,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_1970_2015.parquet")
-    save_subperiod(df_proj,2016,2130,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2130.parquet")
-    save_subperiod(df_proj,2016,2035,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2035.parquet")
-    save_subperiod(df_proj,2036,2050,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2036_2050.parquet")
+    floods.save_subperiod(df_hist,1970,2015,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_1970_2015.parquet")
+    floods.save_subperiod(df_proj,2016,2130,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2130.parquet")
+    floods.save_subperiod(df_proj,2016,2035,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2035.parquet")
+    floods.save_subperiod(df_proj,2036,2050,folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2036_2050.parquet")
     #symlinking_with_meta(folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_1970_2015.parquet",boario_flood_data/f"full_floodbase_1970_2015.parquet")
     #symlinking_with_meta(folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_{mrio_subname}_2016_2035.parquet",boario_flood_data/f"full_floodbase_2016_2035.parquet")
     #symlinking_with_meta(folder/"builded-data"/mrio_name_wo_year/f"6_full_floodbase_{mrio_basename}_2036_2050.parquet",boario_flood_data/f"full_floodbase_2036_2050.parquet")
