@@ -7,11 +7,13 @@ from pathlib import Path
 
 from utils import read_parquet_with_meta, save_parquet_with_meta
 
+
 def dir_path(path):
     if os.path.isdir(path):
         return path
     else:
         raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
+
 
 def file_path(path):
     if os.path.isfile(path):
@@ -32,7 +34,9 @@ scriptLogger.setLevel(logging.INFO)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Treat a database of flood, and maps them to MRIO regions")
+    parser = argparse.ArgumentParser(
+        description="Treat a database of flood, and maps them to MRIO regions"
+    )
     parser.add_argument(
         "-if",
         "--input-flooddb",
@@ -59,7 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--output-repev",
         type=str,
         help="The savepath to the repev test data",
-        default=1.0
+        default=1.0,
     )
     args = parser.parse_args(argv)
     input_flooddb = Path(args.input_flooddb).resolve()
@@ -71,13 +75,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     df = read_parquet_with_meta(input_flooddb)
     reps = read_parquet_with_meta(input_repev)
 
-    save_parquet_with_meta(df.loc[(df["mrio_region"].isin(["AU","FR","DE","FR10", "DE11", "AUS"])) & (df.year <= 2035)], output_flooddb.parent/(output_flooddb.name+"_server.parquet"))
-    save_parquet_with_meta(df.loc[(df["mrio_region"].isin(["FR","FR10"])) & (df.year <= 2035)], output_flooddb.parent/(output_flooddb.name+"_local.parquet"))
+    save_parquet_with_meta(
+        df.loc[
+            (df["mrio_region"].isin(["AU", "FR", "DE", "FR10", "DE11", "AUS"]))
+            & (df.year <= 2035)
+        ],
+        output_flooddb.parent / (output_flooddb.name + "_server.parquet"),
+    )
+    save_parquet_with_meta(
+        df.loc[(df["mrio_region"].isin(["FR", "FR10"])) & (df.year <= 2035)],
+        output_flooddb.parent / (output_flooddb.name + "_local.parquet"),
+    )
 
-    save_parquet_with_meta(reps.loc[(reps.mrio_region.isin(["AU","FR","DE","FR10", "DE11", "AUS"]))].sort_values(by=["mrio_region","direct_prodloss_as_2010gva_share"]).groupby("mrio_region").nth([0,2,-1]).reset_index(), output_repev.parent/(output_repev.name+"_server.parquet"))
-    save_parquet_with_meta(reps.loc[(reps.mrio_region.isin(["FR","FR10"]))].sort_values(by=["mrio_region","direct_prodloss_as_2010gva_share"]).groupby("mrio_region").nth([0,-1]).reset_index(),output_repev.parent/(output_repev.name+"_local.parquet") )
+    save_parquet_with_meta(
+        reps.loc[(reps.mrio_region.isin(["AU", "FR", "DE", "FR10", "DE11", "AUS"]))]
+        .sort_values(by=["mrio_region", "direct_prodloss_as_2010gva_share"])
+        .groupby("mrio_region")
+        .nth([0, 2, -1])
+        .reset_index(),
+        output_repev.parent / (output_repev.name + "_server.parquet"),
+    )
+    save_parquet_with_meta(
+        reps.loc[(reps.mrio_region.isin(["FR", "FR10"]))]
+        .sort_values(by=["mrio_region", "direct_prodloss_as_2010gva_share"])
+        .groupby("mrio_region")
+        .nth([0, -1])
+        .reset_index(),
+        output_repev.parent / (output_repev.name + "_local.parquet"),
+    )
 
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

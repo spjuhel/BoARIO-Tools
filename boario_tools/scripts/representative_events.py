@@ -3,14 +3,12 @@ import logging
 import argparse
 from pathlib import Path
 
-from floods import (
-    build_rep_events_from_parquet
-)
+from floods import build_rep_events_from_parquet
 
 from utils import (
     save_parquet_with_meta,
     file_path,
-    )
+)
 
 logFormatter = logging.Formatter(
     "%(asctime)s [%(levelname)-5.5s] %(name)s %(message)s", datefmt="%H:%M:%S"
@@ -24,7 +22,9 @@ scriptLogger.setLevel(logging.INFO)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Compute representatives events from a database of events")
+    parser = argparse.ArgumentParser(
+        description="Compute representatives events from a database of events"
+    )
     parser.add_argument(
         "-i",
         "--input-parquet",
@@ -51,7 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--gva-max",
         type=float,
         help="maximum share of region gva damage",
-        default=1.0
+        default=1.0,
     )
     args = parser.parse_args(argv)
     input_parquet = Path(args.input_parquet).resolve()
@@ -59,9 +59,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     based_on_column = args.column_base
     gva_max = args.gva_max
 
-    df = build_rep_events_from_parquet(input_parquet,based_on_column=based_on_column,gva_max=gva_max)
-    save_parquet_with_meta(df=df,path=output_parquet)
+    df = build_rep_events_from_parquet(
+        input_parquet, based_on_column=based_on_column, gva_max=gva_max
+    )
+    save_parquet_with_meta(df=df, path=output_parquet)
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
