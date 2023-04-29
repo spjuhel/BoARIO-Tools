@@ -10,8 +10,9 @@ import pathlib
 import geopandas as gpd
 import pymrio as pym
 
-from ..utils import read_parquet_with_meta, save_parquet_with_meta, check_na
 
+from ..utils import read_parquet_with_meta, save_parquet_with_meta, check_na
+from boario_tools import log as scriptLogger
 
 def check_df(df:pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
@@ -37,8 +38,6 @@ def join_flopros(gdf:gpd.GeoDataFrame,flopros:gpd.GeoDataFrame):
     res["protected"] = res["return_period"] < res["MerL_Riv"]
     return pd.DataFrame(res)
 
-
-##### USED FUNCTIONS :
 
 ## CLUSTER ON DATES
 def apply_date_dbscan(df, eps=4,n_jobs=1):
