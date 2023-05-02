@@ -272,10 +272,6 @@ def parse_flood_dir_save_filtered(flood_data_dir, save_path):
 def compute_sector_shares(df, shares):
     size = len(shares)
     data = [df["total_event_dmg"]] * size
-    print(data)
-    print(type(data))
-    print(shares)
-    print(shares.index)
     tmp = (
         pd.concat(data, axis=1, keys=shares.index) * shares
     )
