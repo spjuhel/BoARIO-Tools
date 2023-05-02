@@ -270,8 +270,10 @@ def parse_flood_dir_save_filtered(flood_data_dir, save_path):
 
 
 def compute_sector_shares(df, shares):
+    size = len(shares)
+    data = [df["total_event_dmg"]] * size
     tmp = (
-        pd.concat([df["total_event_dmg"]] * len(shares), axis=1, keys=shares.index)
+        pd.concat(data, axis=1, keys=shares.index)
         * shares
     )
     assert np.isclose(df["total_event_dmg"], tmp.sum(axis=1)).all()
@@ -300,11 +302,8 @@ def global_treatment_until_period_change(
     df = get_events_in_MRIO_regions(df, mrios_shapes, mrio_name)
     df["aff_pop"] = df["pop"]
     df.date = pd.to_datetime(df.date)
-    check_na(df)
     df = cluster_on_dates(df)
-    check_na(df)
     df = cluster_on_coords(df)
-    check_na(df)
     df = set_cluster_name(df)
     df = df[
         [
@@ -320,7 +319,6 @@ def global_treatment_until_period_change(
             "return_period",
         ]
     ].copy()
-    check_na(df)
     (output / "builded-data" / mrio_name).mkdir(parents=True, exist_ok=True)
     scriptLogger.info("Saving pre-clustered floods")
     save_parquet_with_meta(
@@ -573,6 +571,7 @@ def compute_dmg_as_gva_share(df, mrio_ref):
 def global_treatment_after_period_change(
     df, mrio_name, mrio_ref, output_dir, period_name
 ):
+    output_dir = Path(output_dir)
     mrio_re = re.compile(
         r"^(?P<mrio_basename>[a-zA-Z0-9]+)(?:_(?P<mrio_subname>full|\d+_sectors))?$"
     )
