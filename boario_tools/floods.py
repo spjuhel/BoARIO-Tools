@@ -138,7 +138,8 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     gdf_tmp = gdf_tmp.sjoin_nearest(
         mrio_shapes_df, how="left", max_distance=30410, distance_col="distance"
     )
-    gdf_tmp = gdf_tmp.drop_duplicates()
+    # Following https://stackoverflow.com/a/43855963/4703808
+    gdf_tmp = gdf.loc[gdf_tmp.astype(str).drop_duplicates().index]
     scriptLogger.info("......Done, merging and returning")
     gdf_eu = pd.concat([gdf_eu, gdf_tmp], axis=0)
     cols_select = df.columns.drop("geometry").union(pd.Index(["mrio_region", "mrio"]))
