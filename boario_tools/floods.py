@@ -294,6 +294,7 @@ def global_treatment_until_period_change(
     name=None,
     shares=shares,
 ):
+    output = Path(output)
     if name is None:
         if "proj" in initial_parquet.stem:
             name = "proj"
