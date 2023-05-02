@@ -8,13 +8,6 @@ from sklearn.cluster import DBSCAN
 import pathlib
 import geopandas as gpd
 
-shares = None
-K_DMG_SHARE = None
-HIST_PERIOD_NAME = None
-PROJ_PERIOD_NAME = None
-JUNCTION_YEAR = None
-
-
 from boario_tools.utils import read_parquet_with_meta, save_parquet_with_meta, check_na
 from boario_tools import log as scriptLogger
 
@@ -139,15 +132,15 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
         mrio_shapes_df, how="left", max_distance=30410, distance_col="distance"
     )
     # Following https://stackoverflow.com/a/43855963/4703808
-    gdf_missing = gdf.loc[gdf_missing.astype(str).drop_duplicates().index]
+    # gdf_missing = gdf.loc[gdf_missing.astype(str).drop_duplicates().index]
     scriptLogger.info("......Done, merging and returning")
-    gdf_partially_joined = pd.concat([gdf_partially_joined, gdf_missing], axis=0)
-    cols_select = gdf.columns.drop("geometry").union(pd.Index(["mrio_region", "mrio"]))
-    gdf_partially_joined = gdf_partially_joined[cols_select].copy()
+    gdf_totally_joined = pd.concat([gdf_partially_joined, gdf_missing], axis=0)
+    cols_select = df.columns.drop("geometry", errors="ignore").union(pd.Index(["mrio_region", "mrio"]))
+    gdf_totally_joined = gdf_totally_joined[cols_select].copy()
     # gdf_eu.drop(["index_right", "distance"],axis=1,inplace=True)
     # gdf_eu = gdf_eu.to_crs(4326)
-    assert len(gdf_partially_joined) == len(df)
-    return gdf_partially_joined
+    assert len(gdf_totally_joined) == len(df)
+    return gdf_totally_joined
 
 
 def cluster_on_dates(df):
@@ -291,8 +284,9 @@ def global_treatment_until_period_change(
     mrio_name,
     output,
     flopros,
+    shares,
+    k_dmg_share,
     name=None,
-    shares=shares,
 ):
     output = Path(output)
     if name is None:
@@ -306,8 +300,11 @@ def global_treatment_until_period_change(
     df = get_events_in_MRIO_regions(df, mrios_shapes, mrio_name)
     df["aff_pop"] = df["pop"]
     df.date = pd.to_datetime(df.date)
+    check_na(df)
     df = cluster_on_dates(df)
+    check_na(df)
     df = cluster_on_coords(df)
+    check_na(df)
     df = set_cluster_name(df)
     df = df[
         [
@@ -323,6 +320,7 @@ def global_treatment_until_period_change(
             "return_period",
         ]
     ].copy()
+    check_na(df)
     (output / "builded-data" / mrio_name).mkdir(parents=True, exist_ok=True)
     scriptLogger.info("Saving pre-clustered floods")
     save_parquet_with_meta(
@@ -403,7 +401,7 @@ def global_treatment_until_period_change(
     df[
         ["residential_dmg", "industrial_dmg", "commercial_dmg", "infrastructure_dmg"]
     ] = compute_sector_shares(df, shares)
-    df["total_capital_dmg"] = df["total_event_dmg"] * K_DMG_SHARE
+    df["total_capital_dmg"] = df["total_event_dmg"] * k_dmg_share
     df.rename(
         columns={
             "total_capital_dmg": "Total direct damage to capital (2010€PPP)",
@@ -420,11 +418,11 @@ def global_treatment_until_period_change(
     )
 
 
-def period_change(df_hist, df_proj, output, mrio_name):
+def period_change(df_hist, df_proj, output, mrio_name, junction_year, hist_period_name, proj_period_name):
     df_hist = pd.concat(
-        [df_hist, df_proj.loc[(df_proj.date_start.dt.year < JUNCTION_YEAR)]], axis=0
+        [df_hist, df_proj.loc[(df_proj.date_start.dt.year < junction_year)]], axis=0
     )
-    df_proj = df_proj.loc[(df_proj.date_start.dt.year >= JUNCTION_YEAR)].copy()
+    df_proj = df_proj.loc[(df_proj.date_start.dt.year >= junction_year)].copy()
     df_hist["final_cluster"] = (
         df_hist["final_cluster"] + "_" + df_hist["date_start"].dt.year.astype("str")
     )
@@ -436,14 +434,14 @@ def period_change(df_hist, df_proj, output, mrio_name):
         output
         / "builded-data"
         / mrio_name
-        / f"4_clustered_floods_{HIST_PERIOD_NAME}_{mrio_name}.parquet",
+        / f"4_clustered_floods_{hist_period_name}_{mrio_name}.parquet",
     )
     save_parquet_with_meta(
         df_proj,
         output
         / "builded-data"
         / mrio_name
-        / f"4_clustered_floods_{PROJ_PERIOD_NAME}_{mrio_name}.parquet",
+        / f"4_clustered_floods_{proj_period_name}_{mrio_name}.parquet",
     )
 
 

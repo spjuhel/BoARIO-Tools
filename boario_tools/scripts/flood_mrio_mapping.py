@@ -12,14 +12,14 @@ import argparse
 from ..utils import file_path, dir_path, read_parquet_with_meta
 
 # CONSTANTS
-floods.shares = pd.Series(
+shares = pd.Series(
     [0.56, 0.16, 0.20, 0.08],
     index=["residential_dmg", "industrial_dmg", "commercial_dmg", "infrastructure_dmg"],
 )
-floods.K_DMG_SHARE = 0.44
-floods.HIST_PERIOD_NAME = "1970_2015"
-floods.PROJ_PERIOD_NAME = "2016_2130"
-floods.JUNCTION_YEAR = 2016
+k_dmg_share = 0.44
+hist_period_name = "1970_2015"
+proj_period_name = "2016_2130"
+junction_year = 2016
 
 
 logFormatter = logging.Formatter(
@@ -145,7 +145,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             mrio_name_wo_year,
             folder,
             flopros,
-            floods.shares,
+            shares,
+            k_dmg_share
         )
 
     if not (
@@ -162,7 +163,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             mrio_name_wo_year,
             folder,
             flopros,
-            floods.shares,
+            shares,
+            k_dmg_share
         )
 
     df_hist = read_parquet_with_meta(
@@ -193,7 +195,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ).exists()
     ):
         scriptLogger.info("Correcting periods")
-        floods.period_change(df_hist, df_proj, folder, mrio_name_wo_year)
+        floods.period_change(df_hist, df_proj, folder, mrio_name_wo_year, junction_year, hist_period_name, proj_period_name)
 
     df_hist = read_parquet_with_meta(
         folder
@@ -221,7 +223,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     ).exists():
         scriptLogger.info("Starting global treatment (2) for hist")
         parquet_hist = floods.global_treatment_after_period_change(
-            df_hist, mrio_name_wo_year, mrio_ref, folder, period_name=HIST_PERIOD_NAME
+            df_hist, mrio_name_wo_year, mrio_ref, folder, period_name=hist_period_name
         )
 
     if not (
@@ -232,7 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     ).exists():
         scriptLogger.info("Starting global treatment (2) for proj")
         parquet_proj = floods.global_treatment_after_period_change(
-            df_proj, mrio_name_wo_year, mrio_ref, folder, period_name=PROJ_PERIOD_NAME
+            df_proj, mrio_name_wo_year, mrio_ref, folder, period_name=proj_period_name
         )
 
     df_hist = read_parquet_with_meta(
