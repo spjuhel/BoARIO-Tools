@@ -274,9 +274,10 @@ def compute_sector_shares(df, shares):
     data = [df["total_event_dmg"]] * size
     print(data)
     print(type(data))
+    print(shares)
+    print(shares.index)
     tmp = (
-        pd.concat(data, axis=1, keys=shares.index)
-        * shares
+        pd.concat(data, axis=1, keys=shares.index) * shares
     )
     assert np.isclose(df["total_event_dmg"], tmp.sum(axis=1)).all()
     return tmp
