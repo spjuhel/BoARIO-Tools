@@ -127,27 +127,27 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     mrio_shapes_df = mrio_shapes_df.to_crs(crs=3857)
     scriptLogger.info("...Spatial within join")
 
-    gdf_eu = gdf.sjoin(mrio_shapes_df, how="left", predicate="within")
-    gdf_tmp = gdf_eu[gdf_eu.mrio.isna()].copy()
-    gdf_tmp = gdf.loc[gdf_tmp.index]
+    gdf_partially_joined = gdf.sjoin(mrio_shapes_df, how="left", predicate="within")
+    gdf_missing = gdf_partially_joined[gdf_partially_joined.mrio.isna()].copy()
+    gdf_missing = gdf.loc[gdf_missing.index]
     scriptLogger.info("......Done")
     scriptLogger.info(
-        f"...Found {len(gdf_tmp)} unattributed events, joining them by closest distance"
+        f"...Found {len(gdf_missing)} unattributed events, joining them by closest distance"
     )
-    gdf_eu = gdf_eu[~gdf_eu.mrio.isna()].copy()
-    gdf_tmp = gdf_tmp.sjoin_nearest(
+    gdf_partially_joined = gdf_partially_joined[~gdf_partially_joined.mrio.isna()].copy()
+    gdf_missing = gdf_missing.sjoin_nearest(
         mrio_shapes_df, how="left", max_distance=30410, distance_col="distance"
     )
     # Following https://stackoverflow.com/a/43855963/4703808
-    gdf_tmp = gdf_tmp.loc[gdf_tmp.astype(str).drop_duplicates().index]
+    gdf_missing = gdf.loc[gdf_missing.astype(str).drop_duplicates().index]
     scriptLogger.info("......Done, merging and returning")
-    gdf_eu = pd.concat([gdf_eu, gdf_tmp], axis=0)
-    cols_select = df.columns.drop("geometry").union(pd.Index(["mrio_region", "mrio"]))
-    gdf_eu = gdf_eu[cols_select].copy()
+    gdf_partially_joined = pd.concat([gdf_partially_joined, gdf_missing], axis=0)
+    cols_select = gdf.columns.drop("geometry").union(pd.Index(["mrio_region", "mrio"]))
+    gdf_partially_joined = gdf_partially_joined[cols_select].copy()
     # gdf_eu.drop(["index_right", "distance"],axis=1,inplace=True)
     # gdf_eu = gdf_eu.to_crs(4326)
-    assert len(gdf_eu) == len(df)
-    return gdf_eu
+    assert len(gdf_partially_joined) == len(df)
+    return gdf_partially_joined
 
 
 def cluster_on_dates(df):
