@@ -15,7 +15,7 @@ PROJ_PERIOD_NAME = None
 JUNCTION_YEAR = None
 
 
-from utils import read_parquet_with_meta, save_parquet_with_meta, check_na
+from boario_tools.utils import read_parquet_with_meta, save_parquet_with_meta, check_na
 from boario_tools import log as scriptLogger
 
 
@@ -287,7 +287,6 @@ def global_treatment_until_period_change(
     initial_parquet,
     mrios_shapes,
     mrio_name,
-    mrio_fullname,
     output,
     flopros,
     name=None,
@@ -321,14 +320,14 @@ def global_treatment_until_period_change(
             "return_period",
         ]
     ].copy()
-    (output / "builded-data" / mrio_fullname).mkdir(parents=True, exist_ok=True)
+    (output / "builded-data" / mrio_name).mkdir(parents=True, exist_ok=True)
     scriptLogger.info("Saving pre-clustered floods")
     save_parquet_with_meta(
         df,
         output
         / "builded-data"
-        / mrio_fullname
-        / f"1_pre-clustered_floods_{name}_{mrio_fullname}_with_dmg.parquet",
+        / mrio_name
+        / f"1_pre-clustered_floods_{name}_{mrio_name}_with_dmg.parquet",
     )
     flopros = flopros.to_crs(crs=3857)
     scriptLogger.info("Filtering floods with protection layer")
@@ -337,8 +336,8 @@ def global_treatment_until_period_change(
         df,
         output
         / "builded-data"
-        / mrio_fullname
-        / f"2_pre-clustered_floods_{name}_{mrio_fullname}_with_dmg_with_prot.parquet",
+        / mrio_name
+        / f"2_pre-clustered_floods_{name}_{mrio_name}_with_dmg_with_prot.parquet",
     )
     check_na(
         df[
@@ -413,8 +412,8 @@ def global_treatment_until_period_change(
         df,
         output
         / "builded-data"
-        / mrio_fullname
-        / f"3_clustered_floods_{name}_{mrio_fullname}.parquet",
+        / mrio_name
+        / f"3_clustered_floods_{name}_{mrio_name}.parquet",
     )
 
 
