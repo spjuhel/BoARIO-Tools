@@ -244,6 +244,7 @@ def regroup_diff_cell_same_date_cluster(tmp_df):
 
 def parse_flood_dir_save_filtered(flood_data_dir, save_path):
     scriptLogger.info(f"Looking into {flood_data_dir}")
+    save_path = Path(save_path).resolve()
     sc_re = re.compile(r"(r\d)")
     files = sorted(Path(flood_data_dir).glob("**/df_flood_filtered.feather"))
     scriptLogger.info(f"Found {len(files)} files to regroup")
