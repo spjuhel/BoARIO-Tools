@@ -287,6 +287,7 @@ def global_treatment_until_period_change(
     flopros,
     shares,
     k_dmg_share,
+        threshold,
     name=None,
 ):
     output = Path(output)
@@ -394,6 +395,10 @@ def global_treatment_until_period_change(
     df = regroup_diff_cell_same_date_cluster(tmp_df)
     df.reset_index(inplace=True)
     df.time_extent = df.time_extent.round(0).astype(int)
+
+    scriptLogger.info("Removing floods with very low damages")
+    df = df.loc[df.total_capital_dmg > threshold].copy()
+
     scriptLogger.info("Attributing damages to sectors")
     df[
         ["residential_dmg", "industrial_dmg", "commercial_dmg", "infrastructure_dmg"]
