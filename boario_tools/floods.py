@@ -397,13 +397,14 @@ def global_treatment_until_period_change(
     df.time_extent = df.time_extent.round(0).astype(int)
 
     scriptLogger.info("Removing floods with very low damages")
-    df = df.loc[df.total_capital_dmg > threshold].copy()
+    df = df.loc[df.total_event_dmg > threshold].copy()
 
     scriptLogger.info("Attributing damages to sectors")
     df[
         ["residential_dmg", "industrial_dmg", "commercial_dmg", "infrastructure_dmg"]
     ] = compute_sector_shares(df, shares)
     df["total_capital_dmg"] = df["total_event_dmg"] * k_dmg_share
+
     df.rename(
         columns={
             "total_capital_dmg": "Total direct damage to capital (2010€PPP)",
