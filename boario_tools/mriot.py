@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import re
 from typing import Union
+import numpy as np
 import pandas as pd
 import pymrio as pym
 import pickle as pkl
@@ -52,8 +53,11 @@ def va_df_build(
     va_dict = {}
     for year, mrio in mrios:
         mrio = lexico_reindex(mrio)
-        value_added = mrio.x.T - mrio.Z.sum(axis=0)
-        value_added = value_added.reindex(sorted(value_added.index), axis=0)  # type: ignore
+        if mrio.x is not None and mrio.Z is not None:
+            value_added = mrio.x.T - mrio.Z.sum(axis=0)
+        else:
+            raise AttributeError("x and Z members of mrio are not set.")
+        value_added = value_added.reindex(sorted(value_added.index), axis=0)
         value_added = value_added.reindex(sorted(value_added.columns), axis=1)
         value_added[value_added < 0] = 0.0
         va = value_added.T
@@ -68,7 +72,10 @@ def va_df_build(
         )
         va["yearly gross output (M€)"] = mrio.x["indout"]
         va["yearly gross output (€)"] = mrio.x["indout"] * mrio_unit
-        va["yearly total final demand (M€)"] = mrio.Y.sum(axis=1)
+        if mrio.Y is not None:
+            va["yearly total final demand (M€)"] = mrio.Y.sum(axis=1)
+        else:
+            raise AttributeError("Y member of mrio is not set.")
         va["yearly total final demand (€)"] = (
             va["yearly total final demand (M€)"] * mrio_unit
         )
@@ -141,7 +148,7 @@ def aggreg(
     )
     log.info(
         "Aggregating from {} to {} sectors".format(
-            len(mrio.get_sectors()), len(sec_agg_vec.group.unique())
+            mrio.get_sectors().nunique(), len(sec_agg_vec.group.unique())  # type: ignore
         )
     )  # type:ignore
     mrio.aggregate(sector_agg=sec_agg_vec.name.values)
@@ -178,7 +185,7 @@ def load_mrio(filename: str, pkl_filepath) -> pym.IOSystem:
     if not match:
         raise ValueError(f"The file name {filename} is not valid.")
 
-    prefix, year = match.groups()  # get the prefix and year from the matched groups
+    prefix, _ = match.groups()  # get the prefix and year from the matched groups
 
     pkl_filepath = Path(pkl_filepath)
 
@@ -390,12 +397,10 @@ def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
     mrio_pym.aggregate_duplicates()
 
     if inv_treatment:
-        # invs = mrio_pym.Y.loc[:, (slice(None), "Inventory_adjustment")].sum(axis=1)
-        # invs.name = "Inventory_use"
-        # invs_neg = pd.DataFrame(-invs).T
-        # invs_neg[invs_neg < 0] = 0
-        # iova = pd.concat([iova, invs_neg], axis=0)
-        mrio_pym.Y = mrio_pym.Y.clip(lower=0)
+        if mrio_pym.Y is not None:
+            mrio_pym.Y = mrio_pym.Y.clip(lower=0)
+        else:
+            raise AttributeError("Y attribute is not set")
     log.info("Computing the missing IO components")
     mrio_pym.calc_all()
     log.info("Done")
@@ -437,6 +442,98 @@ def preparse_oecd_v2018(mrio_zip: str, output: str):
             delattr(mrio_pym, at)
     assert isinstance(mrio_pym, pym.IOSystem)
     log.info("Done")
+    log.info("Computing the missing IO components")
+    mrio_pym.calc_all()
+    log.info("Done")
+    log.info("Re-indexing lexicographicaly")
+    mrio_pym = lexico_reindex(mrio_pym)
+    log.info("Done")
+    save_path = Path(output)
+    log.info("Saving to {}".format(save_path.absolute()))
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    setattr(mrio_pym, "monetary_factor", 1000000)
+    with open(save_path, "wb") as f:
+        pkl.dump(mrio_pym, f)
+
+
+def parse_mriot_from_df(
+    mriot_df: pd.DataFrame,
+    col_iso3: int,
+    col_sectors: int,
+    rows_data: tuple[int, int],
+    cols_data: tuple[int, int],
+    row_fd_cats: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Build multi-index dataframes of the transaction matrix, final demand and total
+       production from a Multi-Regional Input-Output Table dataframe.
+
+    - Adapted from Alessio Ciulio's contribution to Climada -
+
+    Parameters
+    ----------
+    mriot_df : pandas.DataFrame
+        The Multi-Regional Input-Output Table
+    col_iso3 : int
+        Column's position of regions' iso names
+    col_sectors : int
+        Column's position of sectors' names
+    rows_data : (int, int)
+        Tuple of integers with positions of rows
+        containing the MRIOT data
+    cols_data : (int, int)
+        Tuple of integers with positions of columns
+        containing the MRIOT data
+    row_fd_cats : int
+        Row's position of final demand categories
+    """
+
+    start_row, end_row = rows_data
+    start_col, end_col = cols_data
+
+    sectors = mriot_df.iloc[start_row:end_row, col_sectors].unique()
+    regions = mriot_df.iloc[start_row:end_row, col_iso3].unique()
+    fd_cats = mriot_df.iloc[row_fd_cats, end_col:-1].unique()
+    multiindex = pd.MultiIndex.from_product(
+        [regions, sectors], names=["region", "sector"]
+    )
+
+    multiindex_final_demand = pd.MultiIndex.from_product(
+        [regions, fd_cats], names=["region", "category"]
+    )
+
+    Z = mriot_df.iloc[start_row:end_row, start_col:end_col].values.astype(float)
+    Z = pd.DataFrame(data=Z, index=multiindex, columns=multiindex)
+
+    Y = mriot_df.iloc[start_row:end_row, end_col:-1].values.astype(float)
+    Y = pd.DataFrame(data=Y, index=multiindex, columns=multiindex_final_demand)
+
+    x = mriot_df.iloc[start_row:end_row, -1].values.astype(float)
+    x = pd.DataFrame(data=x, index=multiindex, columns=["total production"])
+
+    return Z, Y, x
+
+
+def parse_wiod_v2016(mrio_xlsb: str, output: str):
+    mriot_df = pd.read_excel(mrio_xlsb, engine="pyxlsb")
+    Z, Y, x = parse_mriot_from_df(
+        mriot_df,
+        col_iso3=2,
+        col_sectors=1,
+        row_fd_cats=2,
+        rows_data=(5, 2469),
+        cols_data=(4, 2468),
+    )
+    mrio_pym = pym.IOSystem(Z=Z, Y=Y, x=x)
+    multiindex_unit = pd.MultiIndex.from_product(
+        [mrio_pym.get_regions(), mrio_pym.get_sectors()], names=["region", "sector"]  # type: ignore
+    )
+    mrio_pym.unit = pd.DataFrame(
+        data=np.repeat(["M.EUR"], len(multiindex_unit)),
+        index=multiindex_unit,
+        columns=["unit"],
+    )
+
+    assert isinstance(mrio_pym, pym.IOSystem)
     log.info("Computing the missing IO components")
     mrio_pym.calc_all()
     log.info("Done")
