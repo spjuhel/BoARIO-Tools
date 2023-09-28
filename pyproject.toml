@@ -9,9 +9,9 @@ packages = [{include = "boario_tools"}]
 [tool.poetry.dependencies]
 python = "^3.9"
 numpy = "^1.24.3"
-geopandas = "^0.12.2"
+geopandas = "^0.12"
 pyarrow = "^11.0.0"
-pymrio = "^0.4.8"
+pymrio = "^0.5.2"
 scikit-learn = "^1.2.2"
 
 
