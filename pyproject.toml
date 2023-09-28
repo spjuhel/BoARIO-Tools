@@ -10,7 +10,7 @@ packages = [{include = "boario_tools"}]
 python = "^3.9"
 numpy = "^1"
 geopandas = "^0.14"
-pyarrow = "^13"
+pyarrow = ">=11"
 pymrio = "^0.5"
 scikit-learn = "^1"
 
