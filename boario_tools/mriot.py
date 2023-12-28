@@ -4,88 +4,105 @@ import re
 from typing import Union
 import numpy as np
 import pandas as pd
-import pymrio as pym
+import pymrio
 import pickle as pkl
 from boario_tools import log
 
 POSSIBLE_MRIOT_REGEXP = r"^(oecd_v2021|euregio|exiobase3|eora26)_full_(\d{4})"
 EUREGIO_REGIONS_RENAMING = {"DEE1": "DEE0", "DEE2": "DEE0", "DEE3": "DEE0"}
 
+def lexico_reindex(mriot: pymrio.IOSystem) -> pymrio.IOSystem:
+    """Re-index IOSystem lexicographically.
 
-def lexico_reindex(mrio: pym.IOSystem) -> pym.IOSystem:
-    """Re-index IOSystem lexicographicaly
-
-    Sort indexes and columns of the dataframe of a :ref:`pymrio.IOSystem` by
-    lexical order.
+    Sort indexes and columns of the dataframe of a pymrio.IOSystem by lexical order.
 
     Parameters
     ----------
-    mrio : pym.IOSystem
-        The IOSystem to sort
+    mriot : pymrio.IOSystem
+        The IOSystem to sort.
 
     Returns
     -------
-    pym.IOSystem
-        The sorted IOSystem
-
+    pymrio.IOSystem
+        The sorted IOSystem.
     """
     for attr in ["Z", "Y", "x", "A"]:
-        if getattr(mrio, attr) is None:
-            raise ValueError(
-                "Attribute {} is None, did you forget to calc_all() the MRIO ?".format(
-                    attr
-                )
-            )
-    mrio.Z = mrio.Z.reindex(sorted(mrio.Z.index), axis=0)  # type: ignore
-    mrio.Z = mrio.Z.reindex(sorted(mrio.Z.columns), axis=1)  # type: ignore
-    mrio.Y = mrio.Y.reindex(sorted(mrio.Y.index), axis=0)  # type: ignore
-    mrio.Y = mrio.Y.reindex(sorted(mrio.Y.columns), axis=1)  # type: ignore
-    mrio.x = mrio.x.reindex(sorted(mrio.x.index), axis=0)  # type: ignore
-    mrio.A = mrio.A.reindex(sorted(mrio.A.index), axis=0)  # type: ignore
-    mrio.A = mrio.A.reindex(sorted(mrio.A.columns), axis=1)  # type: ignore
+        if getattr(mriot, attr) is None:
+            raise ValueError(f"Attribute {attr} is None. Did you forget to calc_all() the MRIOT?")
 
-    return mrio
+    for matrix_name in ["Z", "Y", "x", "A"]:
+        matrix = getattr(mriot, matrix_name)
+        setattr(mriot, matrix_name, matrix.reindex(sorted(matrix.index)).sort_index(axis=1))
 
+    return mriot
 
 def va_df_build(
     mrios: dict, mrio_params: dict, mrio_unit: int = 10**6
 ) -> pd.DataFrame:
+    """Builds a DataFrame containing value-added indicators from a set of pymrio.IOSystem objects. Negative value-added is set to 0.
+
+    Parameters
+    ----------
+    mrios : dict
+        A dictionary containing pymrio.IOSystem objects for different years.
+    mrio_params : dict
+        A dictionary containing MRIOT system parameters, including capital_ratio_dict.
+    mrio_unit : int, optional
+        A multiplier for monetary values (default is 10^6).
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing value-added indicators for different years and regions.
+
+    Raises
+    ------
+    AttributeError
+        If required members (x, Z, Y) of pymrio.IOSystem are not set in the input MRIO systems.
+
+    Notes
+    -----
+    The function computes various value-added indicators, including gross value added (GVA),
+    capital stock, GVA share, yearly gross output, and yearly total final demand.
+
+    """
     va_dict = {}
-    for year, mrio in mrios:
+
+    for year, mrio in mrios.items():  # Use items() to iterate over key, value pairs
         mrio = lexico_reindex(mrio)
-        if mrio.x is not None and mrio.Z is not None:
-            value_added = mrio.x.T - mrio.Z.sum(axis=0)
-        else:
-            raise AttributeError("x and Z members of mrio are not set.")
+
+        if mrio.x is None or mrio.Z is None:
+            raise AttributeError("x and Z members of mriot are not set.")
+
+        value_added = mrio.x.T - mrio.Z.sum(axis=0)
         value_added = value_added.reindex(sorted(value_added.index), axis=0)
         value_added = value_added.reindex(sorted(value_added.columns), axis=1)
         value_added[value_added < 0] = 0.0
         va = value_added.T
         va = va.rename(columns={"indout": "GVA (M€)"})
         va["GVA (€)"] = va["GVA (M€)"] * mrio_unit
-        # display(va)
+
         va[["K_stock (M€)", "K_stock (€)"]] = va.loc[
             va.index.isin(list(mrio_params["capital_ratio_dict"].keys()), level=1), :
         ].mul(pd.Series(mrio_params["capital_ratio_dict"]), axis=0, level=1)
-        va["gva_share"] = va["GVA (€)"] / va.groupby("region")["GVA (€)"].transform(
-            "sum"
-        )
+
+        va["gva_share"] = va["GVA (€)"] / va.groupby("region")["GVA (€)"].transform("sum")
         va["yearly gross output (M€)"] = mrio.x["indout"]
         va["yearly gross output (€)"] = mrio.x["indout"] * mrio_unit
-        if mrio.Y is not None:
-            va["yearly total final demand (M€)"] = mrio.Y.sum(axis=1)
-        else:
+
+        if mrio.Y is None:
             raise AttributeError("Y member of mrio is not set.")
-        va["yearly total final demand (€)"] = (
-            va["yearly total final demand (M€)"] * mrio_unit
-        )
+
+        va["yearly total final demand (M€)"] = mrio.Y.sum(axis=1)
+        va["yearly total final demand (€)"] = va["yearly total final demand (M€)"] * mrio_unit
+
         va = va.reset_index()
         log.info(f"year: {year}")
         va_dict[year] = va.set_index(["region", "sector"])
-    va_df = pd.concat(va_dict.values(), axis=1, keys=va_dict.keys())
-    va_df.columns = va_df.columns.rename("MRIO year", level=0)
-    return va_df
 
+    va_df = pd.concat(va_dict.values(), axis=1, keys=va_dict.keys())
+    va_df.columns = va_df.columns.rename("MRIOT year", level=0)  # type: ignore
+    return va_df
 
 def build_impacted_kstock_df(va_df, event_template):
     return (
@@ -137,7 +154,7 @@ def aggreg(
             )
         )
 
-    assert isinstance(mrio, pym.IOSystem)
+    assert isinstance(mrio, pymrio.IOSystem)
 
     sec_agg_vec = pd.read_csv(sector_aggregator_path, index_col=0)
     sec_agg_vec.sort_index(inplace=True)
@@ -159,7 +176,7 @@ def aggreg(
         pkl.dump(mrio, f)
 
 
-def load_mrio(filename: str, pkl_filepath) -> pym.IOSystem:
+def load_mrio(filename: str, pkl_filepath) -> pymrio.IOSystem:
     """
     Loads the pickle file with the given filename.
 
@@ -195,7 +212,7 @@ def load_mrio(filename: str, pkl_filepath) -> pym.IOSystem:
     with open(fullpath, "rb") as f:
         mrio = pkl.load(f)  # load the pickle file
 
-    if not isinstance(mrio, pym.IOSystem):
+    if not isinstance(mrio, pymrio.IOSystem):
         raise ValueError(f"{filename} was loaded but it is not an IOSystem")
 
     return mrio
@@ -207,7 +224,7 @@ def preparse_exio3(mrio_zip: str, output: str):
     )
     log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     mrio_path = Path(mrio_zip)
-    mrio_pym = pym.parse_exiobase3(path=mrio_path)
+    mrio_pym = pymrio.parse_exiobase3(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
     attr = [
         "Z",
@@ -226,7 +243,7 @@ def preparse_exio3(mrio_zip: str, output: str):
     for at in tmp:
         if at not in attr:
             delattr(mrio_pym, at)
-    assert isinstance(mrio_pym, pym.IOSystem)
+    assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
     log.info("Computing the missing IO components")
     mrio_pym.calc_all()
@@ -253,7 +270,7 @@ def euregio_convert_ods2xlsx(inpt, output, folder, office_exists, uno_exists):
         os.system(f"libreoffice --convert-to xlsx --outdir {folder} {inpt}")
 
 
-def euregio_correct_regions(euregio: pym.IOSystem):
+def euregio_correct_regions(euregio: pymrio.IOSystem):
     euregio.rename_regions(EUREGIO_REGIONS_RENAMING).aggregate_duplicates()
     return euregio
 
@@ -335,7 +352,7 @@ def preparse_euregio(mrio_csv: str, output: str, year):
     )
     log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     ioz, ioy, iova = build_from_csv(mrio_csv, inv_treatment=True)
-    euregio = pym.IOSystem(
+    euregio = pymrio.IOSystem(
         Z=ioz,
         Y=ioy,
         year=year,
@@ -351,7 +368,7 @@ def preparse_euregio(mrio_csv: str, output: str, year):
     euregio.calc_all()
     euregio.meta.change_meta("name", f"euregio {year}")
 
-    assert isinstance(euregio, pym.IOSystem)
+    assert isinstance(euregio, pymrio.IOSystem)
     log.info("Re-indexing lexicographicaly")
     euregio = lexico_reindex(euregio)
     log.info("Done")
@@ -369,7 +386,7 @@ def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
     )
     log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     mrio_path = Path(mrio_zip)
-    mrio_pym = pym.parse_eora26(path=mrio_path)
+    mrio_pym = pymrio.parse_eora26(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
     attr = [
         "Z",
@@ -388,7 +405,7 @@ def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
     for at in tmp:
         if at not in attr:
             delattr(mrio_pym, at)
-    assert isinstance(mrio_pym, pym.IOSystem)
+    assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
     log.info(
         'EORA has the re-import/re-export sector which other mrio often don\'t have (ie EXIOBASE), we put it in "Other".'
@@ -421,7 +438,7 @@ def preparse_oecd_v2018(mrio_zip: str, output: str):
     )
     log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     mrio_path = Path(mrio_zip)
-    mrio_pym = pym.parse_oecd(path=mrio_path)
+    mrio_pym = pymrio.parse_oecd(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
     attr = [
         "Z",
@@ -440,7 +457,7 @@ def preparse_oecd_v2018(mrio_zip: str, output: str):
     for at in tmp:
         if at not in attr:
             delattr(mrio_pym, at)
-    assert isinstance(mrio_pym, pym.IOSystem)
+    assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
     log.info("Computing the missing IO components")
     mrio_pym.calc_all()
@@ -523,7 +540,7 @@ def parse_wiod_v2016(mrio_xlsb: str, output: str):
         rows_data=(5, 2469),
         cols_data=(4, 2468),
     )
-    mrio_pym = pym.IOSystem(Z=Z, Y=Y, x=x)
+    mrio_pym = pymrio.IOSystem(Z=Z, Y=Y, x=x)
     multiindex_unit = pd.MultiIndex.from_product(
         [mrio_pym.get_regions(), mrio_pym.get_sectors()], names=["region", "sector"]  # type: ignore
     )
@@ -533,7 +550,7 @@ def parse_wiod_v2016(mrio_xlsb: str, output: str):
         columns=["unit"],
     )
 
-    assert isinstance(mrio_pym, pym.IOSystem)
+    assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Computing the missing IO components")
     mrio_pym.calc_all()
     log.info("Done")
