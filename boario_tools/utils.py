@@ -7,6 +7,7 @@ import os
 import argparse
 import pyarrow as pa
 
+
 def check_na(df: pd.DataFrame):
     """Asserts a DataFrame has no NA
 
@@ -19,7 +20,9 @@ def check_na(df: pd.DataFrame):
     assert df.isna().sum().sum() == 0
 
 
-def gdfy_from_long_lat(df: pd.DataFrame, longitude_col='long', latitude_col='lat', crs="epsg:4326"):
+def gdfy_from_long_lat(
+    df: pd.DataFrame, longitude_col="long", latitude_col="lat", crs="epsg:4326"
+):
     """Creates a GeoDataFrame from a DataFrame with longitude and latitude columns.
 
     Parameters
@@ -41,6 +44,7 @@ def gdfy_from_long_lat(df: pd.DataFrame, longitude_col='long', latitude_col='lat
     geometry = gpd.points_from_xy(df[longitude_col], df[latitude_col])
     gdf = gpd.GeoDataFrame(df, geometry=geometry, crs=crs)
     return gdf
+
 
 def save_parquet_with_meta(df, path, meta_suffix="_meta", meta_extension=".json"):
     """Saves a DataFrame to a parquet file with associated metadata.
@@ -78,6 +82,7 @@ def save_parquet_with_meta(df, path, meta_suffix="_meta", meta_extension=".json"
         print(f"DataFrame saved to {path}")
     except Exception as e:
         print(f"Error saving DataFrame to {path}: {e}")
+
 
 def read_parquet_with_meta(path, meta_suffix="_meta", meta_extension=".json"):
     """Reads a DataFrame from a parquet file with associated metadata.
@@ -143,7 +148,9 @@ def dir_path(path):
     if os.path.isdir(path) and os.access(path, os.R_OK):
         return path
     else:
-        raise argparse.ArgumentTypeError(f"'{path}' is not a valid or readable directory.")
+        raise argparse.ArgumentTypeError(
+            f"'{path}' is not a valid or readable directory."
+        )
 
 
 def file_path(path):

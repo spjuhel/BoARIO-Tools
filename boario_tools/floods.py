@@ -127,7 +127,9 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     scriptLogger.info(
         f"...Found {len(gdf_missing)} unattributed events, joining them by closest distance"
     )
-    gdf_partially_joined = gdf_partially_joined[~gdf_partially_joined.mrio.isna()].copy()
+    gdf_partially_joined = gdf_partially_joined[
+        ~gdf_partially_joined.mrio.isna()
+    ].copy()
     gdf_missing = gdf_missing.sjoin_nearest(
         mrio_shapes_df, how="left", max_distance=30410, distance_col="distance"
     )
@@ -135,7 +137,9 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     # gdf_missing = gdf.loc[gdf_missing.astype(str).drop_duplicates().index]
     scriptLogger.info("......Done, merging and returning")
     gdf_totally_joined = pd.concat([gdf_partially_joined, gdf_missing], axis=0)
-    cols_select = df.columns.drop("geometry", errors="ignore").union(pd.Index(["mrio_region", "mrio"]))
+    cols_select = df.columns.drop("geometry", errors="ignore").union(
+        pd.Index(["mrio_region", "mrio"])
+    )
     gdf_totally_joined = gdf_totally_joined[cols_select].copy()
     # gdf_eu.drop(["index_right", "distance"],axis=1,inplace=True)
     # gdf_eu = gdf_eu.to_crs(4326)
@@ -272,9 +276,7 @@ def parse_flood_dir_save_filtered(flood_data_dir, save_path):
 def compute_sector_shares(df, shares):
     size = len(shares)
     data = [df["total_event_dmg"]] * size
-    tmp = (
-        pd.concat(data, axis=1, keys=shares.index) * shares
-    )
+    tmp = pd.concat(data, axis=1, keys=shares.index) * shares
     assert np.isclose(df["total_event_dmg"], tmp.sum(axis=1)).all()
     return tmp
 
@@ -287,7 +289,7 @@ def global_treatment_until_period_change(
     flopros,
     shares,
     k_dmg_share,
-        threshold,
+    threshold,
     name=None,
 ):
     output = Path(output)
@@ -421,7 +423,15 @@ def global_treatment_until_period_change(
     )
 
 
-def period_change(df_hist, df_proj, output, mrio_name, junction_year, hist_period_name, proj_period_name):
+def period_change(
+    df_hist,
+    df_proj,
+    output,
+    mrio_name,
+    junction_year,
+    hist_period_name,
+    proj_period_name,
+):
     df_hist = pd.concat(
         [df_hist, df_proj.loc[(df_proj.date_start.dt.year < junction_year)]], axis=0
     )

@@ -11,6 +11,7 @@ from boario_tools import log
 POSSIBLE_MRIOT_REGEXP = r"^(oecd_v2021|euregio|exiobase3|eora26)_full_(\d{4})"
 EUREGIO_REGIONS_RENAMING = {"DEE1": "DEE0", "DEE2": "DEE0", "DEE3": "DEE0"}
 
+
 def lexico_reindex(mriot: pymrio.IOSystem) -> pymrio.IOSystem:
     """Re-index IOSystem lexicographically.
 
@@ -28,13 +29,18 @@ def lexico_reindex(mriot: pymrio.IOSystem) -> pymrio.IOSystem:
     """
     for attr in ["Z", "Y", "x", "A"]:
         if getattr(mriot, attr) is None:
-            raise ValueError(f"Attribute {attr} is None. Did you forget to calc_all() the MRIOT?")
+            raise ValueError(
+                f"Attribute {attr} is None. Did you forget to calc_all() the MRIOT?"
+            )
 
     for matrix_name in ["Z", "Y", "x", "A"]:
         matrix = getattr(mriot, matrix_name)
-        setattr(mriot, matrix_name, matrix.reindex(sorted(matrix.index)).sort_index(axis=1))
+        setattr(
+            mriot, matrix_name, matrix.reindex(sorted(matrix.index)).sort_index(axis=1)
+        )
 
     return mriot
+
 
 def va_df_build(
     mrios: dict, mrio_params: dict, mrio_unit: int = 10**6
@@ -86,7 +92,9 @@ def va_df_build(
             va.index.isin(list(mrio_params["capital_ratio_dict"].keys()), level=1), :
         ].mul(pd.Series(mrio_params["capital_ratio_dict"]), axis=0, level=1)
 
-        va["gva_share"] = va["GVA (€)"] / va.groupby("region")["GVA (€)"].transform("sum")
+        va["gva_share"] = va["GVA (€)"] / va.groupby("region")["GVA (€)"].transform(
+            "sum"
+        )
         va["yearly gross output (M€)"] = mrio.x["indout"]
         va["yearly gross output (€)"] = mrio.x["indout"] * mrio_unit
 
@@ -94,7 +102,9 @@ def va_df_build(
             raise AttributeError("Y member of mrio is not set.")
 
         va["yearly total final demand (M€)"] = mrio.Y.sum(axis=1)
-        va["yearly total final demand (€)"] = va["yearly total final demand (M€)"] * mrio_unit
+        va["yearly total final demand (€)"] = (
+            va["yearly total final demand (M€)"] * mrio_unit
+        )
 
         va = va.reset_index()
         log.info(f"year: {year}")
@@ -103,6 +113,7 @@ def va_df_build(
     va_df = pd.concat(va_dict.values(), axis=1, keys=va_dict.keys())
     va_df.columns = va_df.columns.rename("MRIOT year", level=0)  # type: ignore
     return va_df
+
 
 def build_impacted_kstock_df(va_df, event_template):
     return (

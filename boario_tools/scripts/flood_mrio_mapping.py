@@ -146,7 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             folder,
             flopros,
             shares,
-            k_dmg_share
+            k_dmg_share,
         )
 
     if not (
@@ -164,7 +164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             folder,
             flopros,
             shares,
-            k_dmg_share
+            k_dmg_share,
         )
 
     df_hist = read_parquet_with_meta(
@@ -195,7 +195,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         ).exists()
     ):
         scriptLogger.info("Correcting periods")
-        floods.period_change(df_hist, df_proj, folder, mrio_name_wo_year, junction_year, hist_period_name, proj_period_name)
+        floods.period_change(
+            df_hist,
+            df_proj,
+            folder,
+            mrio_name_wo_year,
+            junction_year,
+            hist_period_name,
+            proj_period_name,
+        )
 
     df_hist = read_parquet_with_meta(
         folder
