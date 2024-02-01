@@ -139,16 +139,46 @@ def build_impacted_shares_df(va_df, event_template):
     ).droplevel(1, axis=1)
 
 
+def load_sectors_aggreg(mrio_name, sectors_common_aggreg):
+    mrio_name = mrio_name.casefold()
+    if "eora" in mrio_name:
+        return sectors_common_aggreg["eora26_without_reexport_to_common_aggreg"]
+    elif "euregio" in mrio_name:
+        return sectors_common_aggreg["euregio_to_common_aggreg"]
+    elif "exio" in mrio_name:
+        return sectors_common_aggreg["exiobase_full_to_common_aggreg"]
+    elif "oecd" in mrio_name:
+        return sectors_common_aggreg["icio2021_to_common_aggreg"]
+    else:
+        raise ValueError(f"Invalid MRIO name: {mrio_name}")
+
+
+def common_aggreg(sector_agg, mrio):
+    sectors_common_aggreg = {
+        sheet_name: pd.read_excel(sector_agg, sheet_name=sheet_name, index_col=0)
+        for sheet_name in [
+            "eora26_without_reexport_to_common_aggreg",
+            "euregio_to_common_aggreg",
+            "exiobase_full_to_common_aggreg",
+            "icio2021_to_common_aggreg",
+        ]
+    }
+    df_aggreg = load_sectors_aggreg(mrio.name, sectors_common_aggreg)
+    mrio.rename_sectors(df_aggreg["new sector"].to_dict())
+    mrio.aggregate_duplicates()
+    return mrio
+
+
 def aggreg(
     mrio_path: Union[str, Path],
     sector_aggregator_path: Union[str, Path],
     save_path=None,
 ):
-    log.info("Loading region aggregator")
-    log.info(
+    logger.info("Loading sector aggregator")
+    logger.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    logger.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
 
     mrio_path = Path(mrio_path)
     if not mrio_path.exists():
@@ -156,7 +186,7 @@ def aggreg(
 
     if mrio_path.suffix == ".pkl":
         with mrio_path.open("rb") as f:
-            log.info("Loading MRIO from {}".format(mrio_path.resolve()))
+            logger.info("Loading MRIO from {}".format(mrio_path.resolve()))
             mrio = pkl.load(f)
     else:
         raise TypeError(
@@ -165,24 +195,27 @@ def aggreg(
             )
         )
 
-    assert isinstance(mrio, pymrio.IOSystem)
-
-    sec_agg_vec = pd.read_csv(sector_aggregator_path, index_col=0)
-    sec_agg_vec.sort_index(inplace=True)
-
-    log.info("Done")
-    log.info(
+    assert isinstance(mrio, pym.IOSystem)
+    logger.info(
         "Reading aggregation from {}".format(Path(sector_aggregator_path).absolute())
     )
-    log.info(
-        "Aggregating from {} to {} sectors".format(
-            mrio.get_sectors().nunique(), len(sec_agg_vec.group.unique())  # type: ignore
-        )
-    )  # type:ignore
-    mrio.aggregate(sector_agg=sec_agg_vec.name.values)
+
+    if "common_aggreg" in str(sector_aggregator_path):
+        mrio = common_aggreg(sector_aggregator_path, mrio)
+    else:
+        sec_agg_vec = pd.read_csv(sector_aggregator_path, index_col=0)
+        sec_agg_vec.sort_index(inplace=True)
+
+        logger.info(
+            "Aggregating from {} to {} sectors".format(
+                mrio.get_sectors().nunique(), len(sec_agg_vec.group.unique())  # type: ignore
+            )
+        )  # type:ignore
+        mrio.aggregate(sector_agg=sec_agg_vec.name.values)
+
     mrio.calc_all()
-    log.info("Done")
-    log.info(f"Saving to {save_path}")
+    logger.info("Done")
+    logger.info(f"Saving to {save_path}")
     with open(str(save_path), "wb") as f:
         pkl.dump(mrio, f)
 
