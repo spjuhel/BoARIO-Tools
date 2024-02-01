@@ -174,11 +174,11 @@ def aggreg(
     sector_aggregator_path: Union[str, Path],
     save_path=None,
 ):
-    logger.info("Loading sector aggregator")
-    logger.info(
+    log.info("Loading sector aggregator")
+    log.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    logger.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
 
     mrio_path = Path(mrio_path)
     if not mrio_path.exists():
@@ -196,7 +196,7 @@ def aggreg(
         )
 
     assert isinstance(mrio, pym.IOSystem)
-    logger.info(
+    log.info(
         "Reading aggregation from {}".format(Path(sector_aggregator_path).absolute())
     )
 
@@ -206,7 +206,7 @@ def aggreg(
         sec_agg_vec = pd.read_csv(sector_aggregator_path, index_col=0)
         sec_agg_vec.sort_index(inplace=True)
 
-        logger.info(
+        log.info(
             "Aggregating from {} to {} sectors".format(
                 mrio.get_sectors().nunique(), len(sec_agg_vec.group.unique())  # type: ignore
             )
@@ -214,8 +214,8 @@ def aggreg(
         mrio.aggregate(sector_agg=sec_agg_vec.name.values)
 
     mrio.calc_all()
-    logger.info("Done")
-    logger.info(f"Saving to {save_path}")
+    log.info("Done")
+    log.info(f"Saving to {save_path}")
     with open(str(save_path), "wb") as f:
         pkl.dump(mrio, f)
 
