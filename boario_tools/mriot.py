@@ -186,7 +186,7 @@ def aggreg(
 
     if mrio_path.suffix == ".pkl":
         with mrio_path.open("rb") as f:
-            logger.info("Loading MRIO from {}".format(mrio_path.resolve()))
+            log.info("Loading MRIO from {}".format(mrio_path.resolve()))
             mrio = pkl.load(f)
     else:
         raise TypeError(
