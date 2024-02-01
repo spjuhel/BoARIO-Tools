@@ -195,7 +195,7 @@ def aggreg(
             )
         )
 
-    assert isinstance(mrio, pymryo.IOSystem)
+    assert isinstance(mrio, pymrio.IOSystem)
     log.info(
         "Reading aggregation from {}".format(Path(sector_aggregator_path).absolute())
     )
