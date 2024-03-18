@@ -178,7 +178,10 @@ def aggreg(
     log.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    try:
+        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    except KeyError:
+        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
 
     mrio_path = Path(mrio_path)
     if not mrio_path.exists():
@@ -266,7 +269,11 @@ def preparse_exio3(mrio_zip: str, output: str):
     log.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    try:
+        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    except KeyError:
+        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_exiobase3(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
@@ -394,7 +401,11 @@ def preparse_euregio(mrio_csv: str, output: str, year):
     log.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    try:
+        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    except KeyError:
+        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+
     ioz, ioy, iova = build_from_csv(mrio_csv, inv_treatment=True)
     euregio = pymrio.IOSystem(
         Z=ioz,
@@ -428,7 +439,13 @@ def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
     log.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+
+    try:
+        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    except KeyError:
+        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+
+
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_eora26(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
@@ -480,7 +497,12 @@ def preparse_oecd_v2018(mrio_zip: str, output: str):
     log.info(
         "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
     )
-    log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+
+    try:
+        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
+    except KeyError:
+        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_oecd(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
