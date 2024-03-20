@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+from boario_tools.regex_patterns import MRIOT_FULLNAME_REGEX
 import pyarrow.feather as feather
 import numpy as np
 import pandas as pd
@@ -590,15 +591,11 @@ def global_treatment_after_period_change(
     df, mrio_name, mrio_ref, output_dir, period_name
 ):
     output_dir = Path(output_dir)
-    mrio_re = re.compile(
-        r"^(?P<mrio_basename>[a-zA-Z0-9]+)(?:_(?P<mrio_subname>full|\d+_sectors))?$"
-    )
+    mrio_re = MRIOT_FULLNAME_REGEX
     match = mrio_re.match(mrio_name)
     if not match:
         raise ValueError(f"{mrio_name} is not a valid mrio")
 
-    # mrio_basename = match['mrio_basename']
-    # mrio_subname = "full" if match['mrio_subname'] is None else match["mrio_subname"]
 
     df = compute_dmg_as_gva_share(df, mrio_ref)
 
