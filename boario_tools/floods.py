@@ -111,6 +111,9 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     """
     scriptLogger.info("Associating events with MRIOT regions")
     mrio_shapes_df = mrios_shapes.loc[mrios_shapes.mrio == mrio_name].copy()
+    if mrio_shapes_df.empty:
+        scriptLogger.error(f"...MRIOT name {mrio_name} wasn't found. Possible ones are {mrios_shapes.mrio.unique()}")
+        raise ValueError(f"...MRIOT name {mrio_name} wasn't found. Possible ones are {mrios_shapes.mrio.unique()}")
     scriptLogger.info("...GDFying flood base")
     gdf = gpd.GeoDataFrame(
         df, geometry=gpd.points_from_xy(df.long, df.lat), crs="epsg:4326"
