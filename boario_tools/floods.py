@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from boario_tools.regex_patterns import MRIOT_FULLNAME_REGEX
+from boario_tools.regex_patterns import MRIOT_BASENAME_REGEX, MRIOT_FULLNAME_REGEX
 import pyarrow.feather as feather
 import numpy as np
 import pandas as pd
@@ -591,7 +591,7 @@ def global_treatment_after_period_change(
     df, mrio_name, mrio_ref, output_dir, period_name
 ):
     output_dir = Path(output_dir)
-    mrio_re = MRIOT_FULLNAME_REGEX
+    mrio_re = re.compile(MRIOT_BASENAME_REGEX)
     match = mrio_re.match(mrio_name)
     if not match:
         raise ValueError(f"{mrio_name} is not a valid mrio")
