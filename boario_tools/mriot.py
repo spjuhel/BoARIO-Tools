@@ -7,13 +7,33 @@ import pandas as pd
 import pymrio
 import pickle as pkl
 from boario_tools import log
+import copy
 
-POSSIBLE_MRIOT_REGEXP = r"^(oecd_v2021|euregio|exiobase3|eora26)_full_(\d{4})"
+import warnings
+from importlib import resources
+from boario_tools.regex_patterns import MRIOT_FULLNAME_REGEX, MRIOT_YEAR_REGEX
+
+POSSIBLE_MRIOT_REGEXP = MRIOT_FULLNAME_REGEX
 EUREGIO_REGIONS_RENAMING = {"DEE1": "DEE0", "DEE2": "DEE0", "DEE3": "DEE0"}
 
+ATTR_LIST = [
+    "Z",
+    "Y",
+    "x",
+    "A",
+    "As",
+    "G",
+    "L",
+    "unit",
+    "population",
+    "meta",
+    "__non_agg_attributes__",
+    "__coefficients__",
+    "__basic__",
+]
 
-####################### Downloading and parsing ######################################
-def preparse_exio3(mrio_zip: str, output: str):
+
+def conda_check():
     log.info(
         """Make sure you use the same python environment as the one loading
         the pickle file (especial pymrio and pandas version !)"""
@@ -25,26 +45,19 @@ def preparse_exio3(mrio_zip: str, output: str):
             "Could not find CONDA_PREFIX, this is normal if you are not using conda."
         )
 
+
+####################### Downloading and parsing ######################################
+def build_exio3_from_zip(mrio_zip: str, remove_attributes):
+    conda_check()
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_exiobase3(path=mrio_path)
-    log.info("Removing unnecessary IOSystem attributes")
-    attr = [
-        "Z",
-        "Y",
-        "x",
-        "A",
-        "L",
-        "unit",
-        "population",
-        "meta",
-        "__non_agg_attributes__",
-        "__coefficients__",
-        "__basic__",
-    ]
-    tmp = list(mrio_pym.__dict__.keys())
-    for at in tmp:
-        if at not in attr:
-            delattr(mrio_pym, at)
+    if remove_attributes:
+        log.info("Removing unnecessary IOSystem attributes")
+        attr = ATTR_LIST
+        tmp = list(mrio_pym.__dict__.keys())
+        for at in tmp:
+            if at not in attr:
+                delattr(mrio_pym, at)
     assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
     log.info("Computing the missing IO components")
@@ -53,26 +66,39 @@ def preparse_exio3(mrio_zip: str, output: str):
     log.info("Re-indexing lexicographicaly")
     mrio_pym = lexico_reindex(mrio_pym)
     log.info("Done")
-    save_path = Path(output)
-    log.info("Saving to {}".format(save_path.absolute()))
-    save_path.parent.mkdir(parents=True, exist_ok=True)
     setattr(mrio_pym, "monetary_factor", 1000000)
-    with open(save_path, "wb") as f:
-        pkl.dump(mrio_pym, f)
+    setattr(mrio_pym, "basename", "exiobase3_ixi")
+    setattr(mrio_pym, "year", mrio_pym.meta.description[-4:])
+    setattr(mrio_pym, "sectors_agg", "full_sectors")
+    setattr(mrio_pym, "regions_agg", "full_regions")
+    return mrio_pym
 
 
-def euregio_convert_ods2xlsx(inpt, output, folder, office_exists, uno_exists):
+def euregio_convert_xlsx2csv(inpt, out_folder, office_exists):
     if not office_exists:
         raise FileNotFoundError(
-            "Creating xlsx files require at least libreoffice which wasn't found (and optionally unoserver). You may wan't to convert EUREGIO files by yourself if you are unable to install libreoffice"
+            "Creating csvs files require libreoffice which wasn't found. You may wan't to convert EUREGIO files by yourself if you are unable to install libreoffice"
         )
-    if uno_exists:
-        os.system(f"unoconvert --port 2002 --convert-to xlsx {inpt} {output}")
-    else:
-        os.system(f"libreoffice --convert-to xlsx --outdir {folder} {inpt}")
+    log.info(
+        f"Executing: libreoffice --convert-to 'csv:Text - txt - csv (StarCalc):44,34,0,1,,,,,,,,3' {out_folder} {inpt}"
+    )
+    os.system(
+        f"libreoffice --convert-to 'csv:Text - txt - csv (StarCalc):44,34,0,1,,,,,,,,3' --outdir {out_folder} {inpt}"
+    )
+    filename = Path(inpt).name
+    log.info(filename)
+    new_filename = (
+        "euregio_" + filename.split("_")[1].split(".")[0].replace("-", "_") + ".csv"
+    )
+    old_path = out_folder / filename.replace(
+        ".xlsb", "-{}.csv".format(filename.split("_")[1].split(".")[0])
+    )
+    new_path = out_folder / new_filename
+    log.info(f"Executing: mv {old_path} {new_path}")
+    os.rename(old_path, new_path)
 
 
-def build_euregio_from_csv(csv_file, inv_treatment=True):
+def build_euregio_components_from_csv(csv_file, inv_treatment=True):
     cols_z = [2, 5] + [i for i in range(6, 3730, 1)]
     ioz = pd.read_csv(
         csv_file,
@@ -127,34 +153,17 @@ def build_euregio_from_csv(csv_file, inv_treatment=True):
     iova.drop(iova.iloc[:, :5].columns, axis=1, inplace=True)
     iova.drop(iova.iloc[:, 3724:].columns, axis=1, inplace=True)
 
-    # ioz = ioz.rename_axis(["region","sector"])
-    # ioz = ioz.rename_axis(["region","sector"],axis=1)
-
     ioy = ioy.rename_axis(["region", "sector"])
     ioy = ioy.rename_axis(["region", "category"], axis=1)
     if inv_treatment:
-        # invs = ioy.loc[:, (slice(None), "Inventory_adjustment")].sum(axis=1)
-        # invs.name = "Inventory_use"
-        # invs_neg = pd.DataFrame(-invs).T
-        # invs_neg[invs_neg < 0] = 0
-        # iova = pd.concat([iova, invs_neg], axis=0)
         ioy = ioy.clip(lower=0)
 
     return ioz, ioy, iova
 
 
-def preparse_euregio(mrio_csv: str, output: str, year):
-    log.info(
-        "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
-    )
-    try:
-        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
-    except KeyError:
-        log.info(
-            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
-        )
-
-    ioz, ioy, iova = build_euregio_from_csv(mrio_csv, inv_treatment=True)
+def build_euregio_from_csv(mrio_csv: str, year, correct_regions):
+    conda_check()
+    ioz, ioy, iova = build_euregio_components_from_csv(mrio_csv, inv_treatment=True)
     euregio = pymrio.IOSystem(
         Z=ioz,
         Y=ioy,
@@ -165,8 +174,14 @@ def preparse_euregio(mrio_csv: str, output: str, year):
             columns=["unit"],
         ),
     )
-    log.info(f"Correcting germany regions : {EUREGIO_REGIONS_RENAMING}")
-    euregio = euregio_correct_regions(euregio)
+    setattr(euregio, "monetary_factor", 1000000)
+    setattr(euregio, "basename", "euregio")
+    setattr(euregio, "year", year)
+    setattr(euregio, "sectors_agg", "full_sectors")
+    setattr(euregio, "regions_agg", "full_regions")
+    if correct_regions:
+        log.info(f"Correcting germany regions : {EUREGIO_REGIONS_RENAMING}")
+        euregio = euregio_correct_regions(euregio)
     log.info("Computing the missing IO components")
     euregio.calc_all()
     euregio.meta.change_meta("name", f"euregio {year}")
@@ -175,55 +190,45 @@ def preparse_euregio(mrio_csv: str, output: str, year):
     log.info("Re-indexing lexicographicaly")
     euregio = lexico_reindex(euregio)
     log.info("Done")
-    save_path = Path(output)
-    log.info("Saving to {}".format(save_path.absolute()))
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    setattr(euregio, "monetary_factor", 1000000)
-    with open(save_path, "wb") as f:
-        pkl.dump(euregio, f)
+    return euregio
 
 
-def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
-    log.info(
-        "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
-    )
-
-    try:
-        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
-    except KeyError:
-        log.info(
-            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
-        )
-
+def build_eora_from_zip(
+    mrio_zip: str,
+    reexport_treatment,
+    inv_treatment,
+    remove_attributes,
+):
+    conda_check()
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_eora26(path=mrio_path)
     log.info("Removing unnecessary IOSystem attributes")
-    attr = [
-        "Z",
-        "Y",
-        "x",
-        "A",
-        "L",
-        "unit",
-        "population",
-        "meta",
-        "__non_agg_attributes__",
-        "__coefficients__",
-        "__basic__",
-    ]
-    tmp = list(mrio_pym.__dict__.keys())
-    for at in tmp:
-        if at not in attr:
-            delattr(mrio_pym, at)
+    if remove_attributes:
+        attr = ATTR_LIST
+        tmp = list(mrio_pym.__dict__.keys())
+        for at in tmp:
+            if at not in attr:
+                delattr(mrio_pym, at)
     assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
-    log.info(
-        "EORA has the re-import/re-export sector which other mrio often don't have (ie EXIOBASE), we put it in 'Other'."
-    )
-    mrio_pym.rename_sectors({"Re-export & Re-import": "Others"})
-    mrio_pym.aggregate_duplicates()
+    setattr(mrio_pym, "monetary_factor", 1000)
+    setattr(mrio_pym, "basename", "eora26")
+    setattr(mrio_pym, "year", re.search(MRIOT_YEAR_REGEX, mrio_zip))
+    setattr(mrio_pym, "sectors_agg", "full_sectors")
+    setattr(mrio_pym, "regions_agg", "full_regions")
+
+    if reexport_treatment:
+        log.info(
+            "EORA26 has the re-import/re-export sector which other mrio often don't have (ie EXIOBASE), we put it in 'Other'."
+        )
+        mrio_pym.rename_sectors({"Re-export & Re-import": "Others"})
+        mrio_pym.aggregate_duplicates()
+        setattr(mrio_pym, "sectors_agg", "full_no_reexport_sectors")
 
     if inv_treatment:
+        log.info(
+            "EORA26 has negative values in its final demand which can cause problems. We set them to 0."
+        )
         if mrio_pym.Y is not None:
             mrio_pym.Y = mrio_pym.Y.clip(lower=0)
         else:
@@ -234,60 +239,32 @@ def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
     log.info("Re-indexing lexicographicaly")
     mrio_pym = lexico_reindex(mrio_pym)
     log.info("Done")
-    save_path = Path(output)
-    log.info("Saving to {}".format(save_path.absolute()))
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    setattr(mrio_pym, "monetary_factor", 1000)
-    with open(save_path, "wb") as f:
-        pkl.dump(mrio_pym, f)
+    return mrio_pym
 
 
-def preparse_oecd_v2018(mrio_zip: str, output: str):
-    log.info(
-        "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
-    )
-
-    try:
-        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
-    except KeyError:
-        log.info(
-            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
-        )
-
+def build_oecd_from_zip(mrio_zip: str, year: int):
+    conda_check()
     mrio_path = Path(mrio_zip)
-    mrio_pym = pymrio.parse_oecd(path=mrio_path)
+    mrio_pym = pymrio.parse_oecd(path=mrio_path, year=year)
     log.info("Removing unnecessary IOSystem attributes")
-    attr = [
-        "Z",
-        "Y",
-        "x",
-        "A",
-        "L",
-        "unit",
-        "population",
-        "meta",
-        "__non_agg_attributes__",
-        "__coefficients__",
-        "__basic__",
-    ]
+    attr = ATTR_list
     tmp = list(mrio_pym.__dict__.keys())
     for at in tmp:
         if at not in attr:
             delattr(mrio_pym, at)
     assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
+    setattr(mrio_pym, "monetary_factor", 1000000)
+    setattr(mrio_pym, "basename", "oecd_v2018")
+    setattr(mrio_pym, "year", year)
+    setattr(mrio_pym, "sectors_agg", "full_sectors")
+    setattr(mrio_pym, "regions_agg", "full_regions")
     log.info("Computing the missing IO components")
     mrio_pym.calc_all()
     log.info("Done")
     log.info("Re-indexing lexicographicaly")
     mrio_pym = lexico_reindex(mrio_pym)
     log.info("Done")
-    save_path = Path(output)
-    log.info("Saving to {}".format(save_path.absolute()))
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    setattr(mrio_pym, "monetary_factor", 1000000)
-    with open(save_path, "wb") as f:
-        pkl.dump(mrio_pym, f)
 
 
 def parse_mriot_from_df(
@@ -347,7 +324,7 @@ def parse_mriot_from_df(
     return Z, Y, x
 
 
-def parse_wiod_v2016(mrio_xlsb: str, output: str):
+def parse_wiod_v2016(mrio_xlsb: str):
     mriot_df = pd.read_excel(mrio_xlsb, engine="pyxlsb")
     Z, Y, x = parse_mriot_from_df(
         mriot_df,
@@ -366,6 +343,11 @@ def parse_wiod_v2016(mrio_xlsb: str, output: str):
         index=multiindex_unit,
         columns=["unit"],
     )
+    setattr(mrio_pym, "monetary_factor", 1000000)
+    setattr(mrio_pym, "basename", "wiod_v2016")
+    setattr(mrio_pym, "year", None)
+    setattr(mrio_pym, "sectors_agg", "full_sectors")
+    setattr(mrio_pym, "regions_agg", "full_regions")
 
     assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Computing the missing IO components")
@@ -374,25 +356,106 @@ def parse_wiod_v2016(mrio_xlsb: str, output: str):
     log.info("Re-indexing lexicographicaly")
     mrio_pym = lexico_reindex(mrio_pym)
     log.info("Done")
-    save_path = Path(output)
-    log.info("Saving to {}".format(save_path.absolute()))
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    setattr(mrio_pym, "monetary_factor", 1000000)
-    with open(save_path, "wb") as f:
-        pkl.dump(mrio_pym, f)
+    return mrio_pym
 
 
 ######################################################################################
 
+
 ############################### IO, saving ###########################################
-def load_mrio(filename: str, pkl_filepath) -> pymrio.IOSystem:
+def euregio_csv_to_pkl(
+    mrio_csv: str, output_dir: str, year, correct_regions=True, custom_name: str|None = None
+):
+    mrio_pym = build_euregio_from_csv(mrio_csv, year, correct_regions)
+    name = (
+        custom_name
+        if custom_name
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+    )
+    save_path = Path(output_dir) / name
+    log.info("Saving to {}".format(save_path.absolute()))
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, "wb") as f:
+        pkl.dump(mrio_pym, f)
+
+
+def eora26_zip_to_pkl(
+    mrio_zip: str,
+    output: str,
+    reexport_treatment=True,
+    inv_treatment=True,
+    remove_attributes=True,
+    custom_name: str|None = None,
+):
+    mrio_pym = build_eora_from_zip(
+        mrio_zip, reexport_treatment, inv_treatment, remove_attributes
+    )
+    name = (
+        custom_name
+        if custom_name
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+    )
+    save_path = Path(output_dir) / name
+    log.info("Saving to {}".format(save_path.absolute()))
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, "wb") as f:
+        pkl.dump(mrio_pym, f)
+
+
+def oecd_v2018_zip_to_pkl(mrio_zip: str, output: str, year: int,
+                          custom_name: str|None = None
+                          ):
+    mrio_pym = build_oecd_from_zip(mrio_zip, year)
+    name = (
+        custom_name
+        if custom_name
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+    )
+    save_path = Path(output_dir) / name
+    log.info("Saving to {}".format(save_path.absolute()))
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, "wb") as f:
+        pkl.dump(mrio_pym, f)
+
+
+def wiod_v2016_xlsb2pkl(mrio_xlsb: str, output: str, custom_name: str|None = None):
+    mrio_pym = parse_wiod_v2016(mrio_xlsb)
+    name = (
+        custom_name
+        if custom_name
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+    )
+    save_path = Path(output_dir) / name
+    log.info("Saving to {}".format(save_path.absolute()))
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, "wb") as f:
+        pkl.dump(mrio_pym, f)
+
+
+def exio3_zip_to_pkl(mrio_zip: str, output: str, remove_attributes: bool = True, custom_name: str|None = None):
+    mrio_pym = build_exio3_from_zip(mrio_zip, remove_attributes)
+    name = (
+        custom_name
+        if custom_name
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+    )
+    save_path = Path(output_dir) / name
+    log.info("Saving to {}".format(save_path.absolute()))
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, "wb") as f:
+        pkl.dump(mrio_pym, f)
+
+
+def load_mrio(
+    filename: str, pkl_filepath, set_attribute_from_filename=False
+) -> pymrio.IOSystem:
     """
     Loads the pickle file with the given filename.
 
     Args:
         filename: A string representing the name of the file to load (without the .pkl extension).
-                  Valid file names follow the format <prefix>_full_<year>, where <prefix> is one of
-                  'oecd_v2021', 'euregio', 'exiobase3', or 'eora26', and <year> is a four-digit year
+                  Valid file names follow the format <basename>_<year>_<suffix>, where <basename> is one of
+                  'oecd_v2021', 'euregio', 'exiobase3_ixi', or 'eora26', and <year> is a four-digit year
                   such as '2000' or '2010'.
 
     Returns:
@@ -404,27 +467,66 @@ def load_mrio(filename: str, pkl_filepath) -> pymrio.IOSystem:
     """
     regex = re.compile(
         POSSIBLE_MRIOT_REGEXP
+        # POSSIBLE_MRIOT_REGEXP = r"^(oecd_v2021|euregio|exiobase3_ixi|eora26)_(\d{4})_?([a-zA-Z]+(?:_[a-zA-Z]+)*)?"
     )  # the regular expression to match filenames
 
-    match = regex.match(filename)  # match the filename with the regular expression
+    rmatch = regex.match(filename)  # match the filename with the regular expression
 
-    if not match:
+    if not rmatch:
         raise ValueError(f"The file name {filename} is not valid.")
 
-    prefix, _ = match.groups()  # get the prefix and year from the matched groups
+    (
+        basename,
+        year,
+        sectors_agg,
+        regions_agg,
+    ) = (
+        rmatch["mrio_basename"],
+        rmatch["mrio_year"],
+        rmatch["mrio_aggreg_sector"],
+        rmatch["mrio_aggreg_regions"],
+    )  # get the basename and year from the matched groups
 
     pkl_filepath = Path(pkl_filepath)
 
-    fullpath = pkl_filepath / prefix / f"{filename}.pkl"  # create the full file path
+    fullpath = pkl_filepath / basename / f"{filename}.pkl"  # create the full file path
 
     log.info(f"Loading {filename} mrio")
     with open(fullpath, "rb") as f:
-        mrio = pkl.load(f)  # load the pickle file
+        mriot = pkl.load(f)  # load the pickle file
 
-    if not isinstance(mrio, pymrio.IOSystem):
+    if not hasattr(mriot, "basename"):
+        mriot.basename = None
+    if not hasattr(mriot, "year"):
+        mriot.year = None
+    if not hasattr(mriot, "sectors_agg"):
+        mriot.sectors_agg = None
+    if not hasattr(mriot, "sectors_agg"):
+        mriot.sectors_agg = None
+    if (
+        basename != mriot.basename
+        or year != mriot.year
+        or mriot.sectors_agg != sectors_agg
+        or mriot.regions_agg != regions_agg
+    ):
+        if set_attribute_from_filename:
+            mriot.basename = basename
+            mriot.year = year
+            mriot.sectors_agg = sectors_agg
+            mriot.regions_agg = regions_agg
+        else:
+            warnings.warn(
+                f"""Attribute and file name differ, you might want to look into that, or load with "set_attribute_from_filename=True":
+        basename: {basename}, attribute: {mriot.basename}
+        year: {year}, attribute: {mriot.year}
+        sectors_agg: {sectors_agg}, attribute: {mriot.sectors_agg}
+        regions_agg: {regions_agg}, attribute: {mriot.regions_agg}
+        """
+            )
+
+    if not isinstance(mriot, pymrio.IOSystem):
         raise ValueError(f"{filename} was loaded but it is not an IOSystem")
-
-    return mrio
+    return mriot
 
 
 ######################################################################################
@@ -571,93 +673,85 @@ def build_impacted_shares_df(va_df, event_template):
 
 ######################################################################################
 
+
 ### Aggregation
-
-
-def load_sectors_aggreg(mrio_name, sectors_common_aggreg):
-    mrio_name = mrio_name.casefold()
-    if "eora" in mrio_name:
-        return sectors_common_aggreg["eora26_without_reexport_to_common_aggreg"]
-    elif "euregio" in mrio_name:
-        return sectors_common_aggreg["euregio_to_common_aggreg"]
-    elif "exio" in mrio_name:
-        return sectors_common_aggreg["exiobase_full_to_common_aggreg"]
-    elif "oecd" in mrio_name:
-        return sectors_common_aggreg["icio2021_to_common_aggreg"]
+def find_sectors_agg(mriot, to_agg, agg_files_path):
+    if to_agg == "common":
+        agg_file = Path(agg_files_path) / "sectors_common_aggreg.ods"
+        log.info("Reading aggregation from {}".format(agg_file.absolute()))
+        return pd.read_excel(
+            agg_file,
+            sheet_name=f"{mriot.basename}_{mriot.sectors_agg}_to_common_aggreg",
+            index_col=0,
+        )
     else:
-        raise ValueError(f"Invalid MRIO name: {mrio_name}")
+        agg_file = (
+            Path(agg_files_path) / mriot.basename / f"{mriot.basename}_{to_agg}.csv"
+        )
+        log.info("Reading aggregation from {}".format(agg_file.absolute()))
+        return pd.read_csv(agg_file, index_col=0)
 
 
-def common_aggreg(sector_agg, mrio):
-    sectors_common_aggreg = {
-        sheet_name: pd.read_excel(sector_agg, sheet_name=sheet_name, index_col=0)
-        for sheet_name in [
-            "eora26_without_reexport_to_common_aggreg",
-            "euregio_to_common_aggreg",
-            "exiobase_full_to_common_aggreg",
-            "icio2021_to_common_aggreg",
-        ]
-    }
-    df_aggreg = load_sectors_aggreg(mrio.name, sectors_common_aggreg)
-    mrio.rename_sectors(df_aggreg["new sector"].to_dict())
-    mrio.aggregate_duplicates()
-    return mrio
+def find_regions_agg(mriot, to_agg, agg_files_path):
+    if to_agg == "common":
+        agg_file = Path(agg_files_path) / "regions_common_aggreg.ods"
+        log.info("Reading aggregation from {}".format(agg_file.absolute()))
+        return pd.read_excel(
+            agg_file,
+            sheet_name=f"{mriot.basename}_{mriot.regions_agg}_to_common_aggreg",
+            index_col=0,
+        )
+    else:
+        agg_file = (
+            Path(agg_files_path) / mriot.basename / f"{mriot.basename}_{to_agg}.csv"
+        )
+        log.info("Reading aggregation from {}".format(agg_file.absolute()))
+        return pd.read_csv(agg_file, index_col=0)
 
 
 def aggreg(
-    mrio_path: Union[str, Path],
-    sector_aggregator_path: Union[str, Path],
-    save_path=None,
+    mriot: pymrio.IOSystem,
+    sectors_aggregation=None,
+    regions_aggregation=None,
+    save_dir=None,
+    agg_files_path=None,
 ):
-    log.info("Loading sector aggregator")
-    log.info(
-        "Make sure you use the same python environment as the one loading the pickle file (especial pymrio and pandas version !)"
-    )
-    try:
-        log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
-    except KeyError:
-        log.info(
-            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
-        )
+    mriot = copy.deepcopy(mriot)
+    assert isinstance(mriot, pymrio.IOSystem)
 
-    mrio_path = Path(mrio_path)
-    if not mrio_path.exists():
-        raise FileNotFoundError("MRIO file not found - {}".format(mrio_path))
+    with resources.path("boario_tools.data", "aggregation_files") as agg_files_path:
+        if sectors_aggregation is not None:
+            reg_agg_vec = find_sectors_agg(mriot, sectors_aggregation, agg_files_path)
+            reg_agg_vec.sort_index(inplace=True)
+            log.info(
+                "Aggregating from {} to {} sectors".format(
+                    mriot.get_sectors().nunique(), len(reg_agg_vec["new sector"].unique())  # type: ignore
+                )
+            )  # type:ignore
+            mriot.rename_sectors(reg_agg_vec["new sector"].to_dict())
+            mriot.aggregate_duplicates()
+            mriot.sectors_agg = sectors_aggregation
 
-    if mrio_path.suffix == ".pkl":
-        with mrio_path.open("rb") as f:
-            log.info("Loading MRIO from {}".format(mrio_path.resolve()))
-            mrio = pkl.load(f)
-    else:
-        raise TypeError(
-            "File type ({}) not recognize for the script (must be zip or pkl) : {}".format(
-                mrio_path.suffix, mrio_path.resolve()
-            )
-        )
+        if regions_aggregation is not None:
+            reg_agg_vec = find_regions_agg(mriot, regions_aggregation, agg_files_path)
+            reg_agg_vec.sort_index(inplace=True)
+            log.info(
+                "Aggregating from {} to {} regions".format(
+                    mriot.get_regions().nunique(), len(reg_agg_vec["new region"].unique())  # type: ignore
+                )
+            )  # type:ignore
+            mriot.rename_regions(reg_agg_vec["new region"].to_dict())
+            mriot.aggregate_duplicates()
+            mriot.regions_agg = regions_aggregation
 
-    assert isinstance(mrio, pymrio.IOSystem)
-    log.info(
-        "Reading aggregation from {}".format(Path(sector_aggregator_path).absolute())
-    )
-
-    if "common_aggreg" in str(sector_aggregator_path):
-        mrio = common_aggreg(sector_aggregator_path, mrio)
-    else:
-        sec_agg_vec = pd.read_csv(sector_aggregator_path, index_col=0)
-        sec_agg_vec.sort_index(inplace=True)
-
-        log.info(
-            "Aggregating from {} to {} sectors".format(
-                mrio.get_sectors().nunique(), len(sec_agg_vec.group.unique())  # type: ignore
-            )
-        )  # type:ignore
-        mrio.aggregate(sector_agg=sec_agg_vec.name.values)
-
-    mrio.calc_all()
+    mriot.calc_all()
     log.info("Done")
-    log.info(f"Saving to {save_path}")
-    with open(str(save_path), "wb") as f:
-        pkl.dump(mrio, f)
+    if save_dir:
+        savefile = f"{save_dir}/{mriot.basename}_{mriot.year}_{mriot.sectors_aggregation}_{mriot.regions_aggregation}.pkl"
+        log.info(f"Saving to {savefile}")
+        with open(str(savefile), "wb") as f:
+            pkl.dump(mriot, f)
+    return mriot
 
 
 ######################################################################################

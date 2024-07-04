@@ -8,13 +8,17 @@ TAU_ALPHA_REGEX = r"(?P<tau_alpha>\d+)"
 
 MRIOT_BASENAME_REGEX = r"(?P<mrio_basename>icio2021|euregio|exiobase3_ixi|eora26)"
 MRIOT_YEAR_REGEX = r"(?P<mrio_year>\d{4})"
-MRIOT_AGGREG_REGEX = r"(?P<mrio_aggreg>full|\d+_sectors|common_aggreg)"
+MRIOT_AGGREG_SECTORS_REGEX = r"(?P<mrio_aggreg_sectors>[a-zA-Z0-9]+_sectors)"
+MRIOT_AGGREG_REGIONS_REGEX = r"(?P<mrio_aggreg_regions>[a-zA-Z0-9]+_regions)"
 MRIOT_FULLNAME_REGEX = re.compile(r"""
 {MRIOT_BASENAME_REGEX} # MRIOT basename
 _ #
 {MRIOT_YEAR_REGEX} # MRIOT year
 _ #
-{MRIOT_AGGREG_REGEX} # Aggregation specification
+{MRIOT_AGGREG_SECTORS_REGEX} # Aggregation specification for sectors
+_ #
+{MRIOT_AGGREG_REGIONS_REGEX} # Aggregation specification for regions
 """.format(MRIOT_BASENAME_REGEX=MRIOT_BASENAME_REGEX,
            MRIOT_YEAR_REGEX=MRIOT_YEAR_REGEX,
-           MRIOT_AGGREG_REGEX=MRIOT_AGGREG_REGEX),re.VERBOSE)
+           MRIOT_AGGREG_SECTORS_REGEX=MRIOT_AGGREG_SECTORS_REGEX,
+           MRIOT_AGGREG_REGIONS_REGEX=MRIOT_AGGREG_REGIONS_REGEX),re.VERBOSE)
