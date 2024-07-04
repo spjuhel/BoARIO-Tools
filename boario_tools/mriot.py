@@ -90,10 +90,10 @@ def euregio_convert_xlsx2csv(inpt, out_folder, office_exists):
     new_filename = (
         "euregio_" + filename.split("_")[1].split(".")[0].replace("-", "_") + ".csv"
     )
-    old_path = out_folder / filename.replace(
+    old_path = Path(out_folder) / filename.replace(
         ".xlsb", "-{}.csv".format(filename.split("_")[1].split(".")[0])
     )
-    new_path = out_folder / new_filename
+    new_path = new_filename
     log.info(f"Executing: mv {old_path} {new_path}")
     os.rename(old_path, new_path)
 
@@ -213,7 +213,7 @@ def build_eora_from_zip(
     log.info("Done")
     setattr(mrio_pym, "monetary_factor", 1000)
     setattr(mrio_pym, "basename", "eora26")
-    setattr(mrio_pym, "year", re.search(MRIOT_YEAR_REGEX, mrio_zip))
+    setattr(mrio_pym, "year", re.search(MRIOT_YEAR_REGEX, mrio_zip)["mrio_year"])
     setattr(mrio_pym, "sectors_agg", "full_sectors")
     setattr(mrio_pym, "regions_agg", "full_regions")
 
@@ -255,7 +255,7 @@ def build_oecd_from_zip(mrio_zip: str, year: int):
     assert isinstance(mrio_pym, pymrio.IOSystem)
     log.info("Done")
     setattr(mrio_pym, "monetary_factor", 1000000)
-    setattr(mrio_pym, "basename", "oecd_v2018")
+    setattr(mrio_pym, "basename", "icio_v2018")
     setattr(mrio_pym, "year", year)
     setattr(mrio_pym, "sectors_agg", "full_sectors")
     setattr(mrio_pym, "regions_agg", "full_regions")
@@ -370,7 +370,7 @@ def euregio_csv_to_pkl(
     name = (
         custom_name
         if custom_name
-        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_agg}_{mrio_pym.regions_agg}.pkl"
     )
     save_path = Path(output_dir) / name
     log.info("Saving to {}".format(save_path.absolute()))
@@ -381,7 +381,7 @@ def euregio_csv_to_pkl(
 
 def eora26_zip_to_pkl(
     mrio_zip: str,
-    output: str,
+    output_dir: str,
     reexport_treatment=True,
     inv_treatment=True,
     remove_attributes=True,
@@ -393,7 +393,7 @@ def eora26_zip_to_pkl(
     name = (
         custom_name
         if custom_name
-        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_agg}_{mrio_pym.regions_agg}.pkl"
     )
     save_path = Path(output_dir) / name
     log.info("Saving to {}".format(save_path.absolute()))
@@ -402,14 +402,14 @@ def eora26_zip_to_pkl(
         pkl.dump(mrio_pym, f)
 
 
-def oecd_v2018_zip_to_pkl(mrio_zip: str, output: str, year: int,
+def oecd_v2018_zip_to_pkl(mrio_zip: str, output_dir: str, year: int,
                           custom_name: str|None = None
                           ):
     mrio_pym = build_oecd_from_zip(mrio_zip, year)
     name = (
         custom_name
         if custom_name
-        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_agg}_{mrio_pym.regions_agg}.pkl"
     )
     save_path = Path(output_dir) / name
     log.info("Saving to {}".format(save_path.absolute()))
@@ -418,12 +418,12 @@ def oecd_v2018_zip_to_pkl(mrio_zip: str, output: str, year: int,
         pkl.dump(mrio_pym, f)
 
 
-def wiod_v2016_xlsb2pkl(mrio_xlsb: str, output: str, custom_name: str|None = None):
+def wiod_v2016_xlsb2pkl(mrio_xlsb: str, output_dir: str, custom_name: str|None = None):
     mrio_pym = parse_wiod_v2016(mrio_xlsb)
     name = (
         custom_name
         if custom_name
-        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_agg}_{mrio_pym.regions_agg}.pkl"
     )
     save_path = Path(output_dir) / name
     log.info("Saving to {}".format(save_path.absolute()))
@@ -432,12 +432,12 @@ def wiod_v2016_xlsb2pkl(mrio_xlsb: str, output: str, custom_name: str|None = Non
         pkl.dump(mrio_pym, f)
 
 
-def exio3_zip_to_pkl(mrio_zip: str, output: str, remove_attributes: bool = True, custom_name: str|None = None):
+def exio3_zip_to_pkl(mrio_zip: str, output_dir: str, remove_attributes: bool = True, custom_name: str|None = None):
     mrio_pym = build_exio3_from_zip(mrio_zip, remove_attributes)
     name = (
         custom_name
         if custom_name
-        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_aggreg}_{mrio_pym.regions_aggreg}.pkl"
+        else f"{mrio_pym.basename}_{mrio_pym.year}_{mrio_pym.sectors_agg}_{mrio_pym.regions_agg}.pkl"
     )
     save_path = Path(output_dir) / name
     log.info("Saving to {}".format(save_path.absolute()))
@@ -465,11 +465,7 @@ def load_mrio(
         ValueError: If the given filename does not match the valid file name format, or the file doesn't contain an IOSystem.
 
     """
-    regex = re.compile(
-        POSSIBLE_MRIOT_REGEXP
-        # POSSIBLE_MRIOT_REGEXP = r"^(oecd_v2021|euregio|exiobase3_ixi|eora26)_(\d{4})_?([a-zA-Z]+(?:_[a-zA-Z]+)*)?"
-    )  # the regular expression to match filenames
-
+    regex = POSSIBLE_MRIOT_REGEXP
     rmatch = regex.match(filename)  # match the filename with the regular expression
 
     if not rmatch:
@@ -483,7 +479,7 @@ def load_mrio(
     ) = (
         rmatch["mrio_basename"],
         rmatch["mrio_year"],
-        rmatch["mrio_aggreg_sector"],
+        rmatch["mrio_aggreg_sectors"],
         rmatch["mrio_aggreg_regions"],
     )  # get the basename and year from the matched groups
 
@@ -676,7 +672,7 @@ def build_impacted_shares_df(va_df, event_template):
 
 ### Aggregation
 def find_sectors_agg(mriot, to_agg, agg_files_path):
-    if to_agg == "common":
+    if to_agg == "common_sectors":
         agg_file = Path(agg_files_path) / "sectors_common_aggreg.ods"
         log.info("Reading aggregation from {}".format(agg_file.absolute()))
         return pd.read_excel(
@@ -693,7 +689,7 @@ def find_sectors_agg(mriot, to_agg, agg_files_path):
 
 
 def find_regions_agg(mriot, to_agg, agg_files_path):
-    if to_agg == "common":
+    if to_agg == "common_regions":
         agg_file = Path(agg_files_path) / "regions_common_aggreg.ods"
         log.info("Reading aggregation from {}".format(agg_file.absolute()))
         return pd.read_excel(
@@ -745,9 +741,10 @@ def aggreg(
             mriot.regions_agg = regions_aggregation
 
     mriot.calc_all()
+    mriot = lexico_reindex(mriot)
     log.info("Done")
     if save_dir:
-        savefile = f"{save_dir}/{mriot.basename}_{mriot.year}_{mriot.sectors_aggregation}_{mriot.regions_aggregation}.pkl"
+        savefile = f"{save_dir}/{mriot.basename}_{mriot.year}_{mriot.sectors_agg}_{mriot.regions_agg}.pkl"
         log.info(f"Saving to {savefile}")
         with open(str(savefile), "wb") as f:
             pkl.dump(mriot, f)
