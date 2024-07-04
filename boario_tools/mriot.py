@@ -364,7 +364,11 @@ def parse_wiod_v2016(mrio_xlsb: str):
 
 ############################### IO, saving ###########################################
 def euregio_csv_to_pkl(
-    mrio_csv: str, output_dir: str, year, correct_regions=True, custom_name: str|None = None
+    mrio_csv: str,
+    output_dir: str,
+    year,
+    correct_regions=True,
+    custom_name: str | None = None,
 ):
     mrio_pym = build_euregio_from_csv(mrio_csv, year, correct_regions)
     name = (
@@ -385,7 +389,7 @@ def eora26_zip_to_pkl(
     reexport_treatment=True,
     inv_treatment=True,
     remove_attributes=True,
-    custom_name: str|None = None,
+    custom_name: str | None = None,
 ):
     mrio_pym = build_eora_from_zip(
         mrio_zip, reexport_treatment, inv_treatment, remove_attributes
@@ -402,9 +406,9 @@ def eora26_zip_to_pkl(
         pkl.dump(mrio_pym, f)
 
 
-def oecd_v2018_zip_to_pkl(mrio_zip: str, output_dir: str, year: int,
-                          custom_name: str|None = None
-                          ):
+def oecd_v2018_zip_to_pkl(
+    mrio_zip: str, output_dir: str, year: int, custom_name: str | None = None
+):
     mrio_pym = build_oecd_from_zip(mrio_zip, year)
     name = (
         custom_name
@@ -418,7 +422,9 @@ def oecd_v2018_zip_to_pkl(mrio_zip: str, output_dir: str, year: int,
         pkl.dump(mrio_pym, f)
 
 
-def wiod_v2016_xlsb2pkl(mrio_xlsb: str, output_dir: str, custom_name: str|None = None):
+def wiod_v2016_xlsb2pkl(
+    mrio_xlsb: str, output_dir: str, custom_name: str | None = None
+):
     mrio_pym = parse_wiod_v2016(mrio_xlsb)
     name = (
         custom_name
@@ -432,7 +438,12 @@ def wiod_v2016_xlsb2pkl(mrio_xlsb: str, output_dir: str, custom_name: str|None =
         pkl.dump(mrio_pym, f)
 
 
-def exio3_zip_to_pkl(mrio_zip: str, output_dir: str, remove_attributes: bool = True, custom_name: str|None = None):
+def exio3_zip_to_pkl(
+    mrio_zip: str,
+    output_dir: str,
+    remove_attributes: bool = True,
+    custom_name: str | None = None,
+):
     mrio_pym = build_exio3_from_zip(mrio_zip, remove_attributes)
     name = (
         custom_name
