@@ -93,7 +93,7 @@ def euregio_convert_xlsx2csv(inpt, out_folder, office_exists):
     old_path = Path(out_folder) / filename.replace(
         ".xlsb", "-{}.csv".format(filename.split("_")[1].split(".")[0])
     )
-    new_path = new_filename
+    new_path = Path(out_folder) / new_filename
     log.info(f"Executing: mv {old_path} {new_path}")
     os.rename(old_path, new_path)
 
