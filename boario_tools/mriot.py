@@ -682,39 +682,38 @@ def build_impacted_shares_df(va_df, event_template):
 
 
 ### Aggregation
-def find_sectors_agg(mriot, to_agg, agg_files_path):
+def find_sectors_agg(basename, orig_agg, to_agg, agg_files_path):
     if to_agg == "common_sectors":
         agg_file = Path(agg_files_path) / "sectors_common_aggreg.ods"
         log.info("Reading aggregation from {}".format(agg_file.absolute()))
         return pd.read_excel(
             agg_file,
-            sheet_name=f"{mriot.basename}_{mriot.sectors_agg}_to_common_aggreg",
+            sheet_name=f"{basename}_{orig_agg}_to_common_aggreg",
             index_col=0,
         )
     else:
         agg_file = (
-            Path(agg_files_path) / mriot.basename / f"{mriot.basename}_{to_agg}.csv"
+            Path(agg_files_path) / basename / f"{basename}_{to_agg}.csv"
         )
         log.info("Reading aggregation from {}".format(agg_file.absolute()))
         return pd.read_csv(agg_file, index_col=0)
 
 
-def find_regions_agg(mriot, to_agg, agg_files_path):
+def find_regions_agg(basename, orig_agg, to_agg, agg_files_path):
     if to_agg == "common_regions":
         agg_file = Path(agg_files_path) / "regions_common_aggreg.ods"
         log.info("Reading aggregation from {}".format(agg_file.absolute()))
         return pd.read_excel(
             agg_file,
-            sheet_name=f"{mriot.basename}_{mriot.regions_agg}_to_common_aggreg",
+            sheet_name=f"{basename}_{orig_agg}_to_common_aggreg",
             index_col=0,
         )
     else:
         agg_file = (
-            Path(agg_files_path) / mriot.basename / f"{mriot.basename}_{to_agg}.csv"
+            Path(agg_files_path) / basename / f"{basename}_{to_agg}.csv"
         )
         log.info("Reading aggregation from {}".format(agg_file.absolute()))
         return pd.read_csv(agg_file, index_col=0)
-
 
 def aggreg(
     mriot: pymrio.IOSystem,
@@ -728,7 +727,7 @@ def aggreg(
 
     with resources.path("boario_tools.data", "aggregation_files") as agg_files_path:
         if sectors_aggregation is not None:
-            reg_agg_vec = find_sectors_agg(mriot, sectors_aggregation, agg_files_path)
+            reg_agg_vec = find_sectors_agg(mriot.basename, mriot.sectors_agg, sectors_aggregation, agg_files_path)
             reg_agg_vec.sort_index(inplace=True)
             log.info(
                 "Aggregating from {} to {} sectors".format(
@@ -740,7 +739,7 @@ def aggreg(
             mriot.sectors_agg = sectors_aggregation
 
         if regions_aggregation is not None:
-            reg_agg_vec = find_regions_agg(mriot, regions_aggregation, agg_files_path)
+            reg_agg_vec = find_regions_agg(mriot.basename, mriot.regions_agg, regions_aggregation, agg_files_path)
             reg_agg_vec.sort_index(inplace=True)
             log.info(
                 "Aggregating from {} to {} regions".format(
