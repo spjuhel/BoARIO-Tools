@@ -160,7 +160,6 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     gdf_totally_joined = gdf_totally_joined[cols_select].copy()
     # gdf_eu.drop(["index_right", "distance"],axis=1,inplace=True)
     # gdf_eu = gdf_eu.to_crs(4326)
-    assert len(gdf_totally_joined) == len(df)
     return gdf_totally_joined, gdf_missing_real
 
 
@@ -348,7 +347,7 @@ def global_treatment_until_period_change(
         / f"1_pre-clustered_floods_{name}_{mrio_name}_with_dmg.parquet",
     )
     save_parquet_with_meta(
-        df,
+        missing,
         output
         / "builded-data"
         / mrio_name
