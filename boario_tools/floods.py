@@ -151,6 +151,9 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
         This is maybe due to RoW region(s) not being present in the MRIOT (Such as for Eora26)
         """
     )
+    gdf_missing = gdf_missing[
+        ~gdf_missing.mrio.isna()
+    ].copy()
 
     scriptLogger.info("......Done, merging and returning")
     gdf_totally_joined = pd.concat([gdf_partially_joined, gdf_missing], axis=0)
