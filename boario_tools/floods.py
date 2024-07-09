@@ -113,8 +113,12 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     scriptLogger.info("Associating events with MRIOT regions")
     mrio_shapes_df = mrios_shapes.loc[mrios_shapes.mrio == mrio_name].copy()
     if mrio_shapes_df.empty:
-        scriptLogger.error(f"...MRIOT name {mrio_name} wasn't found. Possible ones are {mrios_shapes.mrio.unique()}")
-        raise ValueError(f"...MRIOT name {mrio_name} wasn't found. Possible ones are {mrios_shapes.mrio.unique()}")
+        scriptLogger.error(
+            f"...MRIOT name {mrio_name} wasn't found. Possible ones are {mrios_shapes.mrio.unique()}"
+        )
+        raise ValueError(
+            f"...MRIOT name {mrio_name} wasn't found. Possible ones are {mrios_shapes.mrio.unique()}"
+        )
     scriptLogger.info("...GDFying flood base")
     gdf = gpd.GeoDataFrame(
         df, geometry=gpd.points_from_xy(df.long, df.lat), crs="epsg:4326"
@@ -139,6 +143,15 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     )
     # Following https://stackoverflow.com/a/43855963/4703808
     # gdf_missing = gdf.loc[gdf_missing.astype(str).drop_duplicates().index]
+    gdf_missing_real = gdf_missing[gdf_missing.mrio.isna()].copy()
+    gdf_missing_real = gdf.loc[gdf_missing_real.index]
+    scriptLogger.info("......Done")
+    scriptLogger.info(
+        f"""...Found {len(gdf_missing_real)} unattributed events after joining them by closest distance,
+        This is maybe due to RoW region(s) not being present in the MRIOT (Such as for Eora26)
+        """
+    )
+
     scriptLogger.info("......Done, merging and returning")
     gdf_totally_joined = pd.concat([gdf_partially_joined, gdf_missing], axis=0)
     cols_select = df.columns.drop("geometry", errors="ignore").union(
@@ -148,7 +161,7 @@ def get_events_in_MRIO_regions(df, mrios_shapes, mrio_name):
     # gdf_eu.drop(["index_right", "distance"],axis=1,inplace=True)
     # gdf_eu = gdf_eu.to_crs(4326)
     assert len(gdf_totally_joined) == len(df)
-    return gdf_totally_joined
+    return gdf_totally_joined, gdf_missing_real
 
 
 def cluster_on_dates(df):
@@ -305,7 +318,7 @@ def global_treatment_until_period_change(
         else:
             name = "noname"
     df = read_parquet_with_meta(initial_parquet)
-    df = get_events_in_MRIO_regions(df, mrios_shapes, mrio_name)
+    df , missing = get_events_in_MRIO_regions(df, mrios_shapes, mrio_name)
     df["aff_pop"] = df["pop"]
     df.date = pd.to_datetime(df.date)
     df = cluster_on_dates(df)
@@ -333,6 +346,13 @@ def global_treatment_until_period_change(
         / "builded-data"
         / mrio_name
         / f"1_pre-clustered_floods_{name}_{mrio_name}_with_dmg.parquet",
+    )
+    save_parquet_with_meta(
+        df,
+        output
+        / "builded-data"
+        / mrio_name
+        / f"1_1_non_attributed_pre-clustered_floods_{name}_{mrio_name}_with_dmg.parquet",
     )
     flopros = flopros.to_crs(crs=3857)
     scriptLogger.info("Filtering floods with protection layer")
@@ -518,11 +538,11 @@ def compute_direct_prodloss(df, gva_df, va_df, event_template, ref_year):
     min_year = int(va_df.columns.get_level_values(0).min())
     max_year = int(va_df.columns.get_level_values(0).max())
     df["closest_MRIO_year"] = [
-        int(year)
-        if min_year <= int(year) <= max_year
-        else min_year
-        if int(year) < min_year
-        else max_year
+        (
+            int(year)
+            if min_year <= int(year) <= max_year
+            else min_year if int(year) < min_year else max_year
+        )
         for year in df["year"]
     ]
 
@@ -595,7 +615,6 @@ def global_treatment_after_period_change(
     match = mrio_re.match(mrio_name)
     if not match:
         raise ValueError(f"{mrio_name} is not a valid mrio")
-
 
     df = compute_dmg_as_gva_share(df, mrio_ref)
 

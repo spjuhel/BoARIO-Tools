@@ -42,9 +42,7 @@ def lexico_reindex(mriot: pymrio.IOSystem) -> pymrio.IOSystem:
     return mriot
 
 
-def va_df_build(
-    mrios: dict, mrio_params: dict, mrio_unit: int = 10**6
-) -> pd.DataFrame:
+def va_df_build(mrios: dict, mrio_params: dict, mrio_unit: int = 10**6) -> pd.DataFrame:
     """Builds a DataFrame containing value-added indicators from a set of pymrio.IOSystem objects. Negative value-added is set to 0.
 
     Parameters
@@ -181,7 +179,9 @@ def aggreg(
     try:
         log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     except KeyError:
-        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+        log.info(
+            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
+        )
 
     mrio_path = Path(mrio_path)
     if not mrio_path.exists():
@@ -272,7 +272,9 @@ def preparse_exio3(mrio_zip: str, output: str):
     try:
         log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     except KeyError:
-        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+        log.info(
+            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
+        )
 
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_exiobase3(path=mrio_path)
@@ -404,7 +406,9 @@ def preparse_euregio(mrio_csv: str, output: str, year):
     try:
         log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     except KeyError:
-        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+        log.info(
+            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
+        )
 
     ioz, ioy, iova = build_from_csv(mrio_csv, inv_treatment=True)
     euregio = pymrio.IOSystem(
@@ -443,8 +447,9 @@ def preparse_eora26(mrio_zip: str, output: str, inv_treatment=True):
     try:
         log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     except KeyError:
-        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
-
+        log.info(
+            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
+        )
 
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_eora26(path=mrio_path)
@@ -501,7 +506,9 @@ def preparse_oecd_v2018(mrio_zip: str, output: str):
     try:
         log.info("Your current environment is: {}".format(os.environ["CONDA_PREFIX"]))
     except KeyError:
-        log.info("Could not find CONDA_PREFIX, this is normal if you are not using conda.")
+        log.info(
+            "Could not find CONDA_PREFIX, this is normal if you are not using conda."
+        )
 
     mrio_path = Path(mrio_zip)
     mrio_pym = pymrio.parse_oecd(path=mrio_path)
