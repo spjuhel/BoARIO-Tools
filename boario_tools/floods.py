@@ -10,7 +10,7 @@ import pathlib
 import geopandas as gpd
 
 from boario_tools.utils import read_parquet_with_meta, save_parquet_with_meta, check_na
-from boario_tools import log as scriptLogger
+from boario_tools import LOGGER as scriptLogger
 
 
 def check_df(df: pd.DataFrame):
