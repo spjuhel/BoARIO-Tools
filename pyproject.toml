@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "boario-tools"
-version = "0.2.2"
+version = "0.2.3"
 description = ""
 authors = ["Samuel Juhel <samuel.juhel@zaclys.net>"]
 readme = "README.md"
