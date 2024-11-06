@@ -261,8 +261,10 @@ def download_mriot(mriot_type, mriot_year, download_dir):
     elif mriot_type == "OECD23":
         years_groups = ["1995-2000", "2001-2005", "2006-2010", "2011-2015", "2016-2020"]
         year_group = years_groups[int(np.floor((mriot_year - 1995) / 5))-1]
-
         pymrio.download_oecd(storage_folder=download_dir, years=year_group)
+
+    else:
+        raise ValueError(f"Invalid MRIOT type {mriot_type}")
 
 
 def parse_mriot(mriot_type, downloaded_file, mriot_year, **kwargs):
