@@ -21,7 +21,7 @@ import pathlib
 import zipfile
 
 from tqdm import tqdm
-from config import config
+from .config import config
 
 POSSIBLE_MRIOT_REGEXP = MRIOT_FULLNAME_REGEX
 EUREGIO_REGIONS_RENAMING = {"DEE1": "DEE0", "DEE2": "DEE0", "DEE3": "DEE0"}
@@ -37,6 +37,7 @@ MRIOT_DEFAULT_FILENAME = {
     "EXIOBASE3": lambda year: f"IOT_{year}_ixi.zip",
     "WIOD16": lambda year: f"WIOT{year}_Nov16_ROW.xlsb",
     "OECD23": lambda year: f"ICIO2023_{year}.csv",
+    "EORA26": lambda year: f"Eora26_{year}_bp.zip"
 }
 
 MRIOT_MONETARY_FACTOR = {
@@ -313,7 +314,7 @@ def parse_mriot(mriot_type, downloaded_file, mriot_year, **kwargs):
             mriot.Y.sum(axis=1) < 0
         ].clip(lower=0)
         mriot.x = pymrio.calc_x(mriot.Z, mriot.Y)
-
+        mriot.A = pymrio.calc_A(mriot.Z, mriot.x)
 
     return mriot
 
@@ -434,6 +435,8 @@ def build_oecd_from_csv(
 ):
     mrio_path = pathlib.Path(mrio_csv)
     mrio_pym = pymrio.parse_oecd(path=mrio_path, year=year)
+    # Drop the "ALL" column for consistency
+    mrio_pym.Y = mrio_pym.Y.drop("ALL",axis=1)
     LOGGER.info("Removing unnecessary IOSystem attributes")
     if remove_attributes:
         attr = _ATTR_LIST
