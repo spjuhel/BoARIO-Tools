@@ -318,7 +318,7 @@ def parse_mriot(mriot_type, downloaded_file, mriot_year, **kwargs):
 
     return mriot
 
-def build_exio3_from_zip(mrio_zip: str, remove_attributes=True, aggregate_ROW=True):
+def build_exio3_from_zip(mrio_zip: str, remove_attributes=True, aggregate_ROW=False):
     mrio_path = pathlib.Path(mrio_zip)
     mrio_pym = pymrio.parse_exiobase3(path=mrio_path)
     mrio_pym = cast(pymrio.IOSystem, mrio_pym)  # Just for the LSP
@@ -798,9 +798,10 @@ def exio3_zip_to_pkl(
     mrio_zip: str,
     output_dir: str,
     remove_attributes: bool = True,
+    aggregate_row: bool = False,
     custom_name: str | None = None,
 ):
-    mrio_pym = build_exio3_from_zip(mrio_zip, remove_attributes)
+    mrio_pym = build_exio3_from_zip(mrio_zip, remove_attributes, aggregate_row)
     name = (
         custom_name
         if custom_name
