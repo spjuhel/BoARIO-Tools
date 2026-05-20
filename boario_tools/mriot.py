@@ -55,6 +55,14 @@ MRIOT_COUNTRY_CONVERTER_CORR = {
     "OECD23" : "ISO3"
 }
 
+MRIOT_BASENAME = {
+    "EXIOBASE3": "exiobase3_ixi",
+    "EORA26": "eora26",
+    "WIOD16": "wiod_v2016",
+    "OECD23": "icio_v2023",
+}
+
+
 WIOD_FILE_LINK = config.get("resources", "wiod16_url")
 """Link to the 2016 release of the WIOD tables."""
 
@@ -318,7 +326,40 @@ def parse_mriot(mriot_type, downloaded_file, mriot_year, **kwargs):
 
     return mriot
 
-def build_exio3_from_zip(mrio_zip: str, remove_attributes=True, aggregate_ROW=False):
+
+
+def build_exio3_from_zip(
+    mrio_zip: str | pathlib.Path,
+    remove_attributes: bool = True,
+    aggregate_ROW: bool = False,
+) -> pymrio.IOSystem:
+    """Creates an EXIOBASE3 IOSystem from a zip file.
+
+    This function mainly relies on `pymrio.parse_exiobase3()`. Optionaly and by
+    default, it also removes attributes that can be memory expensive and not
+    used within Climada context, and aggregates the EXIOBASE3 world regions to
+    one unique ROW region.
+    It also:
+    - adds several new attributes to the object such as `monetary_factor` and `year` for internal mechanics
+    - sorts the indexes of the MRIOT.
+    - computes missing parts or the MRIOT
+
+    Parameters
+    ----------
+    mrio_zip : str | pathlib.Path
+        The path to the EXIOBASE3 zip file.
+    remove_attributes : bool, default True.
+        Whether to remove unnecessary attribute which can be memory expensive.
+    aggregate_ROW : bool, default True.
+        Whether to aggregate `["WA", "WE", "WF", "WL", "WM"]` to `"ROW"`.
+
+    Returns
+    -------
+    pymrio.IOSystem
+        An IOSystem corresponding to the EXIOBASE3 MRIOT.
+
+    """
+
     mrio_path = pathlib.Path(mrio_zip)
     mrio_pym = pymrio.parse_exiobase3(path=mrio_path)
     mrio_pym = cast(pymrio.IOSystem, mrio_pym)  # Just for the LSP
@@ -330,8 +371,6 @@ def build_exio3_from_zip(mrio_zip: str, remove_attributes=True, aggregate_ROW=Fa
             if at not in attr:
                 delattr(mrio_pym, at)
         LOGGER.info("Done")
-
-    mrio_pym.meta.change_meta("name", "EXIOBASE3")
 
     if aggregate_ROW:
         LOGGER.info("Aggregating the different ROWs regions together")
@@ -358,17 +397,18 @@ def build_exio3_from_zip(mrio_zip: str, remove_attributes=True, aggregate_ROW=Fa
     LOGGER.info("Done")
 
     setattr(mrio_pym, "monetary_factor", MRIOT_MONETARY_FACTOR["EXIOBASE3"])
-    setattr(mrio_pym, "basename", "exiobase3_ixi")
+    setattr(mrio_pym, "basename", MRIOT_BASENAME["EXIOBASE3"])
     setattr(mrio_pym, "year", mrio_pym.meta.description[-4:])
     setattr(mrio_pym, "sectors_agg", "full_sectors")
     setattr(mrio_pym, "regions_agg", "full_regions")
     # Also put it in meta for saving
     mrio_pym.meta.change_meta("monetary_factor", MRIOT_MONETARY_FACTOR["EXIOBASE3"])
     mrio_pym.meta.change_meta("year", mrio_pym.meta.description[-4:])
-    mrio_pym.meta.change_meta("basename", "exiobase3_ixi")
+    mrio_pym.meta.change_meta("basename", MRIOT_BASENAME["EXIOBASE3"])
     mrio_pym.meta.change_meta("sectors_agg", "full_sectors")
     mrio_pym.meta.change_meta("regions_agg", "full_regions")
     return mrio_pym
+
 
 
 def build_eora_from_zip(
@@ -916,17 +956,22 @@ def lexico_reindex(mriot: pymrio.IOSystem) -> pymrio.IOSystem:
     Returns
     -------
     pymrio.IOSystem
-        The sorted IOSystem.
+        A sorted copy of the IOSystem.
     """
-
-    for matrix_name in ["Z", "Y", "x", "A", "As", "G", "L"]:
-        matrix = getattr(mriot, matrix_name)
-        if matrix is not None:
-            setattr(
-                mriot, matrix_name, matrix.reindex(sorted(matrix.index)).sort_index(axis=1)
-            )
-
-    return mriot
+    mriot = copy.deepcopy(mriot)
+    if getattr("mriot", "_sorted", None):
+        return mriot
+    else:
+        for matrix_name in ["Z", "Y", "x", "A", "As", "G", "L"]:
+            matrix = getattr(mriot, matrix_name, None)
+            if matrix is not None:
+                setattr(
+                    mriot,
+                    matrix_name,
+                    matrix.reindex(sorted(matrix.index)).sort_index(axis=1),
+                )
+        mriot._sorted = True
+        return mriot
 
 
 ######################################################################################
